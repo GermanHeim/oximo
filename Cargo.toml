@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+description = "A Rust algebraic modeling library for solving optimization problems"
+keywords = ["optimization", "math", "science"]
+categories = ["mathematics", "science", "algorithms"]
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/germanheim/oximo"
+authors = ["Germán Martín Heim <german.martin.heim@gmail.com>"]
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+doc_markdown = "allow"
+needless_lifetimes = "allow"
+needless_pass_by_value = "allow"
+similar_names = "allow"
+items_after_statements = "allow"
+return_self_not_must_use = "allow"
+unnecessary_literal_bound = "allow"
+elidable_lifetime_names = "allow"
+missing_fields_in_debug = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
