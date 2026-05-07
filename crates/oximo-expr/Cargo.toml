@@ -1,0 +1,17 @@
+[package]
+name = "oximo-expr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Arena-allocated expression tree for the oximo optimization framework"
+
+[dependencies]
+smallvec = { workspace = true, features = ["union"] }
+rustc-hash.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
