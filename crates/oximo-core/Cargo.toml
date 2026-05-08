@@ -1,0 +1,21 @@
+[package]
+name = "oximo-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Core modeling types (Variable, Set, Constraint, Model) for oximo"
+
+[dependencies]
+oximo-expr.workspace = true
+rayon.workspace = true
+smallvec.workspace = true
+smol_str.workspace = true
+rustc-hash.workspace = true
+ndarray.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

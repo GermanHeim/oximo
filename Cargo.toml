@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/oximo-expr",
+    "crates/oximo-core",
 ]
 
 [workspace.package]
@@ -17,9 +18,13 @@ authors = ["Germán Martín Heim <german.martin.heim@gmail.com>"]
 
 [workspace.dependencies]
 oximo-expr   = { path = "crates/oximo-expr",   version = "0.1.0" }
+oximo-core   = { path = "crates/oximo-core",   version = "0.1.0" }
 
+rayon        = "1.12"
 smallvec     = "1.15"
+smol_str     = "0.3.6"
 rustc-hash   = "2.1"
+ndarray      = "0.17"
 thiserror    = "2.0"
 
 [workspace.lints.rust]
@@ -28,6 +33,7 @@ missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
+upper_case_acronyms = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 doc_markdown = "allow"
