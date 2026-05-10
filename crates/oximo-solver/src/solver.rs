@@ -6,9 +6,9 @@ use crate::status::SolverError;
 
 /// Concrete solver backend.
 ///
-/// Backends live in their own crates and the umbrella `oximo` crate 
-/// gates them behind cargo features. Implementors translate the 
-/// `Model` into their internal representation, solve, and return 
+/// Backends live in their own crates and the umbrella `oximo` crate
+/// gates them behind cargo features. Implementors translate the
+/// `Model` into their internal representation, solve, and return
 /// a populated [`SolverResult`].
 pub trait Solver {
     fn name(&self) -> &str;
