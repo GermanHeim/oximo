@@ -9,8 +9,8 @@ use rustc_hash::FxHashMap;
 use crate::options::apply as apply_options;
 
 /// Translate `model` into a HiGHS [`RowProblem`], solve, and return the
-/// generic [`SolverResult`]. 
-/// 
+/// generic [`SolverResult`].
+///
 /// For now we only support LP and MILP. Nonlinear constraints
 /// or objectives produce [`SolverError::Nonlinear`].
 ///

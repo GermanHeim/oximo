@@ -24,7 +24,7 @@ use oximo_solver::{Solver, SolverError, SolverOptions, SolverResult};
 
 /// HiGHS solver handle. Cheap to construct. The actual HiGHS instance is
 /// created per `solve` call so models can be re-used or shared across solves.
-/// 
+///
 /// TODO: Can we do this better in the future?
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Highs;

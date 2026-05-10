@@ -3,11 +3,11 @@ use oximo_solver::{OptionValue, SolverOptions};
 
 /// Translate generic [`SolverOptions`] into HiGHS' string-keyed configuration.
 /// Unknown keys are silently ignored to keep backends interchangeable.
-/// 
-/// TODO: We should probably have a more structured way to represent options in the future, 
-/// but this is good enough for now. 
+///
+/// TODO: We should probably have a more structured way to represent options in the future,
+/// but this is good enough for now.
 /// HiGHS has a lot of options and we don't want to have to mirror all of them in our own API immediately.
-/// 
+///
 /// TODO: Create a warning when the user tries to set an option that is not supported by the backend?
 pub(crate) fn apply(model: &mut HighsModel, opts: &SolverOptions) {
     for (k, v) in &opts.entries {
