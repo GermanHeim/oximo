@@ -5,6 +5,7 @@ members = [
     "crates/oximo-core",
     "crates/oximo-solver",
     "crates/oximo-highs",
+    "crates/oximo-io",
 ]
 
 [workspace.package]
@@ -23,6 +24,7 @@ oximo-expr   = { path = "crates/oximo-expr",   version = "0.1.0" }
 oximo-core   = { path = "crates/oximo-core",   version = "0.1.0" }
 oximo-solver = { path = "crates/oximo-solver", version = "0.1.0" }
 oximo-highs  = { path = "crates/oximo-highs",  version = "0.1.0" }
+oximo-io     = { path = "crates/oximo-io",     version = "0.1.0" }
 
 rayon        = "1.12"
 smallvec     = "1.15"
