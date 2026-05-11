@@ -1,3 +1,17 @@
+//! MPS file format import and export.
+//!
+//! MPS is a widely supported text format for linear optimization problems. It can
+//! represent LP and MILP models, but not nonlinear or conic problems. The format is
+//! somewhat idiosyncratic and has some limitations (e.g. only one objective row
+//! named `OBJ`, no native support for free variables), but is a common lingua franca for
+//! exchanging linear models between tools.
+//!
+//! This module provides functions to write an oximo [`Model`] to MPS format.
+//! The main function is [`write_mps`], which writes to any `std::io::Write`.
+//!
+//! References:
+//! - "MPS file format," lp_solve. <https://lpsolve.sourceforge.net/5.5/mps-format.htm> (accessed May 09, 2026).
+
 use std::io::Write;
 
 use oximo_core::{Model, ObjectiveSense, Sense};
@@ -9,7 +23,7 @@ use crate::error::IoError;
 ///
 /// MPS only represents linear LP / MILP. Nonlinear expressions in the
 /// objective or constraints raise [`IoError::Nonlinear`]. The objective row
-/// is named `OBJ`; constraint rows take their oximo names.
+/// is named `OBJ`. Constraint rows take their oximo names.
 ///
 /// # Errors
 ///
