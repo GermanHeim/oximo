@@ -46,7 +46,9 @@ fn infeasible_returns_status() {
 
 #[cfg(feature = "io")]
 #[test]
-fn mps_export_round_trips_objective() {
+fn mps_coefficients_and_rhs() {
+    // Verify that COLUMNS carries the right coefficients and RHS is correct.
+    // Model: min 3x + 4y, s.t. x + 2y <= 14 (y bounded 0..4)
     let m = Model::new("transport");
     let x = m.var("x").lb(0.0).build();
     let y = m.var("y").lb(0.0).ub(4.0).build();
@@ -54,15 +56,61 @@ fn mps_export_round_trips_objective() {
     m.minimize(3.0 * x + 4.0 * y);
 
     let s = oximo::io::to_mps_string(&m).unwrap();
+
+    // Structure
     assert!(s.contains("NAME"));
-    assert!(s.contains("OBJ"));
-    assert!(s.contains("c1"));
+    assert!(s.contains("ROWS"));
+    assert!(s.contains(" N  OBJ"));
+    assert!(s.contains(" L  c1"));
+    assert!(s.contains("COLUMNS"));
+    assert!(s.contains("RHS"));
+    assert!(s.contains("BOUNDS"));
     assert!(s.contains("ENDATA"));
+
+    // Objective coefficients
+    assert!(s.contains("x         OBJ       3"));
+    assert!(s.contains("y         OBJ       4"));
+
+    // Constraint coefficients
+    assert!(s.contains("x         c1        1"));
+    assert!(s.contains("y         c1        2"));
+
+    // RHS for c1
+    assert!(s.contains("RHS       c1        14"));
+
+    // y upper bound
+    assert!(s.contains("UP BND       y         4"));
+
+    // Sense comment preserved
+    assert!(s.contains("* sense: minimize"));
 }
 
 #[cfg(feature = "io")]
 #[test]
-fn lp_export_emits_required_sections() {
+fn mps_free_and_integer_bounds() {
+    let m = Model::new("mixed");
+    let _x = m.var("x").binary().build();
+    let _y = m.var("y").lb(0.0).ub(10.0).integer().build();
+    let z = m.var("z").lb(f64::NEG_INFINITY).build();
+    m.minimize(z);
+
+    let s = oximo::io::to_mps_string(&m).unwrap();
+
+    // Integer markers present
+    assert!(s.contains("'INTORG'"));
+    assert!(s.contains("'INTEND'"));
+
+    // z is free
+    assert!(s.contains("FR BND       z"));
+
+    // y upper bound
+    assert!(s.contains("UP BND       y         10"));
+}
+
+#[cfg(feature = "io")]
+#[test]
+fn lp_coefficients_and_bounds() {
+    // Verify coefficients, sense, constraint operators, and bound declarations.
     let m = Model::new("transport");
     let x = m.var("x").lb(0.0).build();
     let y = m.var("y").lb(0.0).ub(4.0).build();
@@ -71,15 +119,44 @@ fn lp_export_emits_required_sections() {
     m.maximize(3.0 * x + 4.0 * y);
 
     let s = oximo::io::to_lp_string(&m).unwrap();
+
+    // Sense
     assert!(s.contains("Maximize"));
+    assert!(!s.contains("Minimize"));
+
+    // Objective coefficients (unit coeff omits magnitude)
     assert!(s.contains("obj:"));
-    assert!(s.contains("Subject To"));
+    assert!(s.contains("3 x"));
+    assert!(s.contains("4 y"));
+
+    // Constraints present with correct operators
     assert!(s.contains("c1:"));
+    assert!(s.contains("<= 14"));
     assert!(s.contains("c2:"));
-    assert!(s.contains("<="));
-    assert!(s.contains(">="));
+    assert!(s.contains(">= 0"));
+
+    // y ub=4 is non-default → must appear in Bounds
     assert!(s.contains("Bounds"));
+    assert!(s.contains("<= 4"));
+
+    // x has default bounds (lb=0, ub=inf) → must NOT appear in Bounds
+    let bounds_start = s.find("Bounds").unwrap();
+    let end_start = s.find("End").unwrap();
+    let bounds_section = &s[bounds_start..end_start];
+    assert!(!bounds_section.contains(" x "), "x should not appear in Bounds");
+
     assert!(s.contains("End"));
+}
+
+#[cfg(feature = "io")]
+#[test]
+fn lp_free_variable_emits_free_keyword() {
+    let m = Model::new("free_test");
+    let x = m.var("x").lb(f64::NEG_INFINITY).build();
+    m.minimize(x);
+
+    let s = oximo::io::to_lp_string(&m).unwrap();
+    assert!(s.contains("x free"), "free variable must use 'x free' syntax");
 }
 
 #[cfg(feature = "io")]
@@ -93,7 +170,14 @@ fn lp_export_lists_binaries_and_integers() {
 
     let s = oximo::io::to_lp_string(&m).unwrap();
     assert!(s.contains("General"));
-    assert!(s.contains(" y"));
     assert!(s.contains("Binaries"));
-    assert!(s.contains(" x"));
+
+    let gen_start = s.find("General").unwrap();
+    let bin_start = s.find("Binaries").unwrap();
+    // y in General section, not Binaries
+    assert!(s[gen_start..bin_start].contains(" y"));
+    assert!(!s[gen_start..bin_start].contains(" x"));
+    // x in Binaries section
+    assert!(s[bin_start..].contains(" x"));
+    assert!(!s[bin_start..].contains(" y"));
 }
