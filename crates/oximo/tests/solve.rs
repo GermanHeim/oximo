@@ -11,7 +11,7 @@ fn lp_canonical() {
     m.constraint("c3", (x - y).le(2.0));
     m.maximize(3.0 * x + 4.0 * y);
 
-    let result = Highs.solve(&m, &SolverOptions::default()).unwrap();
+    let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
     assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
     assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
@@ -29,7 +29,7 @@ fn knapsack_milp() {
     m.constraint("cap", weight_sum.le(15.0));
     m.maximize(sum(xs.iter().zip(values.iter()).map(|(x, v)| *v * *x)));
 
-    let result = Highs.solve(&m, &SolverOptions::default()).unwrap();
+    let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
     assert!((result.objective.unwrap() - 47.0).abs() < 1e-6);
 }
@@ -40,7 +40,7 @@ fn infeasible_returns_status() {
     let x = m.var("x").lb(0.0).ub(1.0).build();
     m.constraint("c1", x.ge(5.0));
     m.minimize(x);
-    let result = Highs.solve(&m, &SolverOptions::default()).unwrap();
+    let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Infeasible);
 }
 
@@ -135,11 +135,11 @@ fn lp_coefficients_and_bounds() {
     assert!(s.contains("c2:"));
     assert!(s.contains(">= 0"));
 
-    // y ub=4 is non-default → must appear in Bounds
+    // y ub=4 is non-default -> must appear in Bounds
     assert!(s.contains("Bounds"));
     assert!(s.contains("<= 4"));
 
-    // x has default bounds (lb=0, ub=inf) → must NOT appear in Bounds
+    // x has default bounds (lb=0, ub=inf) -> must NOT appear in Bounds
     let bounds_start = s.find("Bounds").unwrap();
     let end_start = s.find("End").unwrap();
     let bounds_section = &s[bounds_start..end_start];
