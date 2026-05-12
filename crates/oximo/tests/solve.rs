@@ -44,6 +44,74 @@ fn infeasible_returns_status() {
     assert_eq!(result.status, SolverStatus::Infeasible);
 }
 
+#[test]
+fn presolve_off_gives_correct_result() {
+    let m = Model::new("canon");
+    let x = m.var("x").lb(0.0).build();
+    let y = m.var("y").lb(0.0).ub(4.0).build();
+    m.constraint("c1", (x + 2.0 * y).le(14.0));
+    m.constraint("c2", (3.0 * x - y).ge(0.0));
+    m.constraint("c3", (x - y).le(2.0));
+    m.maximize(3.0 * x + 4.0 * y);
+    let result = Highs.solve(&m, &HighsOptions::default().presolve(Presolve::Off)).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
+    assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
+}
+
+#[test]
+fn ipm_method_gives_correct_result() {
+    let m = Model::new("canon");
+    let x = m.var("x").lb(0.0).build();
+    let y = m.var("y").lb(0.0).ub(4.0).build();
+    m.constraint("c1", (x + 2.0 * y).le(14.0));
+    m.constraint("c2", (3.0 * x - y).ge(0.0));
+    m.constraint("c3", (x - y).le(2.0));
+    m.maximize(3.0 * x + 4.0 * y);
+    let result = Highs.solve(&m, &HighsOptions::default().method(HighsMethod::Ipm)).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
+    assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
+}
+
+#[test]
+fn threads_one_gives_correct_result() {
+    let m = Model::new("canon");
+    let x = m.var("x").lb(0.0).build();
+    let y = m.var("y").lb(0.0).ub(4.0).build();
+    m.constraint("c1", (x + 2.0 * y).le(14.0));
+    m.constraint("c2", (3.0 * x - y).ge(0.0));
+    m.constraint("c3", (x - y).le(2.0));
+    m.maximize(3.0 * x + 4.0 * y);
+    let result = Highs.solve(&m, &HighsOptions::default().threads(1)).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
+    assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
+}
+
+#[test]
+fn mip_gap_accepted_and_solves() {
+    // Loose gap on a tiny knapsack, still gets optimal on small instances.
+    let weights = [3.0, 4.0, 2.0, 5.0, 1.0];
+    let values = [10.0, 12.0, 5.0, 14.0, 3.0];
+    let m = oximo_core::Model::new("ks");
+    let xs: Vec<_> = (0..5).map(|i| m.var(format!("x{i}")).binary().build()).collect();
+    let ws = xs.iter().zip(weights.iter()).map(|(x, w)| *w * *x);
+    m.constraint("cap", sum(ws).le(8.0));
+    m.maximize(sum(xs.iter().zip(values.iter()).map(|(x, v)| *v * *x)));
+    let opts = HighsOptions::default().mip_gap(0.5).verbose(false);
+    let result = Highs.solve(&m, &opts).unwrap();
+    assert!(
+        matches!(result.status, SolverStatus::Optimal | SolverStatus::Feasible),
+        "unexpected status: {:?}",
+        result.status
+    );
+    assert!(result.objective.unwrap() > 0.0);
+}
+
 #[cfg(feature = "io")]
 #[test]
 fn mps_coefficients_and_rhs() {
