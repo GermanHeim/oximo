@@ -5,13 +5,14 @@
 #![forbid(unsafe_code)]
 
 pub mod options;
-pub mod registry;
 pub mod result;
 pub mod solver;
 pub mod status;
 
-pub use options::{OptionValue, SolverOptions};
-pub use registry::SolverRegistry;
+pub use options::{
+    HasMip, HasUniversal, MipOptions, MipOptionsExt, Presolve, UniversalOptions,
+    UniversalOptionsExt,
+};
 pub use result::SolverResult;
 pub use solver::Solver;
 pub use status::{SolverError, SolverStatus};
