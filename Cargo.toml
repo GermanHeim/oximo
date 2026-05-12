@@ -6,6 +6,7 @@ members = [
     "crates/oximo-solver",
     "crates/oximo-highs",
     "crates/oximo-io",
+    "crates/oximo",
 ]
 
 [workspace.package]
