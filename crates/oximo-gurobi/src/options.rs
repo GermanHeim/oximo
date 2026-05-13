@@ -304,3 +304,65 @@ pub(crate) fn apply(model: &mut GrbModel, o: &GurobiOptions) -> Result<(), grb::
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use oximo_solver::{MipOptionsExt, Presolve, UniversalOptionsExt};
+
+    use super::*;
+
+    #[test]
+    fn builder_sets_universal_and_mip() {
+        let o = GurobiOptions::default()
+            .time_limit(Duration::from_secs(60))
+            .threads(4)
+            .verbose(false)
+            .mip_gap(0.05)
+            .presolve(Presolve::On);
+        assert_eq!(o.universal.time_limit, Some(Duration::from_secs(60)));
+        assert_eq!(o.universal.threads, Some(4));
+        assert_eq!(o.universal.verbose, Some(false));
+        assert_eq!(o.mip.mip_gap, Some(0.05));
+        assert_eq!(o.mip.presolve, Some(Presolve::On));
+        assert!(o.int_params.is_empty());
+    }
+
+    #[test]
+    fn builder_pushes_gurobi_params() {
+        let o = GurobiOptions::default()
+            .concurrent_mip(2)
+            .seed(123)
+            .mip_gap_abs(1e-4)
+            .log_file("solve.log");
+        assert_eq!(o.int_params, vec![(IntParam::ConcurrentMIP, 2), (IntParam::Seed, 123)]);
+        assert_eq!(o.double_params, vec![(DoubleParam::MIPGapAbs, 1e-4)]);
+        assert_eq!(o.str_params, vec![(StrParam::LogFile, "solve.log".to_owned())]);
+    }
+
+    #[test]
+    fn default_vecs_are_empty() {
+        let o = GurobiOptions::default();
+        assert!(o.int_params.is_empty());
+        assert!(o.double_params.is_empty());
+        assert!(o.str_params.is_empty());
+    }
+
+    #[test]
+    fn same_param_twice_stores_both_entries() {
+        // Gurobi applies params in order, the last write wins at the backend,
+        // but our vec preserves the full call sequence.
+        let o = GurobiOptions::default().seed(123).seed(99);
+        assert_eq!(o.int_params, vec![(IntParam::Seed, 123), (IntParam::Seed, 99)]);
+    }
+
+    #[test]
+    fn clone_preserves_all_vecs() {
+        let o = GurobiOptions::default().seed(123).feasibility_tol(1e-9).log_file("x");
+        let c = o.clone();
+        assert_eq!(o.int_params, c.int_params);
+        assert_eq!(o.double_params, c.double_params);
+        assert_eq!(o.str_params, c.str_params);
+    }
+}
