@@ -6,6 +6,7 @@ members = [
     "crates/oximo-solver",
     "crates/oximo-highs",
     "crates/oximo-io",
+    "crates/oximo-gurobi",
     "crates/oximo",
 ]
 
@@ -26,6 +27,7 @@ oximo-core   = { path = "crates/oximo-core",   version = "0.1.0" }
 oximo-solver = { path = "crates/oximo-solver", version = "0.1.0" }
 oximo-highs  = { path = "crates/oximo-highs",  version = "0.1.0" }
 oximo-io     = { path = "crates/oximo-io",     version = "0.1.0" }
+oximo-gurobi = { path = "crates/oximo-gurobi", version = "0.1.0" }
 
 rayon        = "1.12"
 smallvec     = "1.15"
@@ -34,6 +36,7 @@ rustc-hash   = "2.1"
 ndarray      = "0.17"
 thiserror    = "2.0"
 highs        = "2.1"
+grb          = "3.0"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

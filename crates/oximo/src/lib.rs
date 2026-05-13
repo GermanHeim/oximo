@@ -24,6 +24,9 @@ pub use oximo_io as io;
 
 #[cfg(feature = "highs")]
 pub use oximo_highs::{HighsMethod, HighsOptions};
+
+#[cfg(feature = "gurobi")]
+pub use oximo_gurobi::GurobiOptions;
 pub mod prelude {
     //! Glob-import target. Brings the modeling and solver surface into scope.
     pub use oximo_core::prelude::*;
@@ -34,6 +37,9 @@ pub mod prelude {
 
     #[cfg(feature = "highs")]
     pub use oximo_highs::{HighsMethod, HighsOptions};
+
+    #[cfg(feature = "gurobi")]
+    pub use oximo_gurobi::GurobiOptions;
 }
 
 pub mod solvers {

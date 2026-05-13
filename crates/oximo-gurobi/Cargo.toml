@@ -1,0 +1,20 @@
+[package]
+name = "oximo-gurobi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Gurobi backend for oximo"
+
+[dependencies]
+oximo-expr.workspace = true
+oximo-core.workspace = true
+oximo-solver.workspace = true
+grb = { workspace = true, features = ["gurobi12"] }
+rustc-hash.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
