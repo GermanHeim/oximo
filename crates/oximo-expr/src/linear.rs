@@ -1,4 +1,4 @@
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 use smallvec::smallvec;
 
 use crate::arena::{ExprArena, ExprId, ExprNode, VarId};
@@ -30,7 +30,8 @@ fn as_linear(arena: &ExprArena, id: ExprId) -> Option<LinearTerms> {
         ExprNode::Add(children) => {
             let children: smallvec::SmallVec<[ExprId; 4]> = children.iter().copied().collect();
             let mut acc = LinearTerms::default();
-            let mut map: FxHashMap<VarId, f64> = FxHashMap::default();
+            let mut map: FxHashMap<VarId, f64> =
+                FxHashMap::with_capacity_and_hasher(children.len() * 4, FxBuildHasher);
             for child in children {
                 let t = as_linear(arena, child)?;
                 for (v, c) in t.coeffs {
@@ -78,7 +79,8 @@ fn push_linear(arena: &mut ExprArena, mut t: LinearTerms) -> ExprId {
 /// linear. Falls back to an n-ary `Add` node otherwise.
 pub(crate) fn add_into(arena: &mut ExprArena, lhs: ExprId, rhs: ExprId) -> ExprId {
     if let (Some(lt), Some(rt)) = (as_linear(arena, lhs), as_linear(arena, rhs)) {
-        let mut map: FxHashMap<VarId, f64> = FxHashMap::default();
+        let mut map: FxHashMap<VarId, f64> =
+            FxHashMap::with_capacity_and_hasher(lt.coeffs.len() + rt.coeffs.len(), FxBuildHasher);
         for (v, c) in lt.coeffs.into_iter().chain(rt.coeffs) {
             *map.entry(v).or_insert(0.0) += c;
         }
