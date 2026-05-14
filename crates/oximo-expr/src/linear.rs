@@ -100,25 +100,17 @@ pub(crate) fn sub_into(arena: &mut ExprArena, lhs: ExprId, rhs: ExprId) -> ExprI
 /// stay on the linear fast-path. Otherwise produce a generic n-ary `Mul`.
 pub(crate) fn mul_into(arena: &mut ExprArena, lhs: ExprId, rhs: ExprId) -> ExprId {
     if let ExprNode::Const(c) = *arena.get(lhs) {
-        if let Some(t) = as_linear(arena, rhs) {
-            return push_linear(
-                arena,
-                LinearTerms {
-                    coeffs: t.coeffs.into_iter().map(|(v, co)| (v, co * c)).collect(),
-                    constant: t.constant * c,
-                },
-            );
+        if let Some(mut t) = as_linear(arena, rhs) {
+            t.coeffs.iter_mut().for_each(|(_, co)| *co *= c);
+            t.constant *= c;
+            return push_linear(arena, t);
         }
     }
     if let ExprNode::Const(c) = *arena.get(rhs) {
-        if let Some(t) = as_linear(arena, lhs) {
-            return push_linear(
-                arena,
-                LinearTerms {
-                    coeffs: t.coeffs.into_iter().map(|(v, co)| (v, co * c)).collect(),
-                    constant: t.constant * c,
-                },
-            );
+        if let Some(mut t) = as_linear(arena, lhs) {
+            t.coeffs.iter_mut().for_each(|(_, co)| *co *= c);
+            t.constant *= c;
+            return push_linear(arena, t);
         }
     }
     arena.push(ExprNode::Mul(smallvec![lhs, rhs]))
@@ -126,14 +118,10 @@ pub(crate) fn mul_into(arena: &mut ExprArena, lhs: ExprId, rhs: ExprId) -> ExprI
 
 /// Build `-rhs`, preserving linearity.
 pub(crate) fn neg_into(arena: &mut ExprArena, rhs: ExprId) -> ExprId {
-    if let Some(t) = as_linear(arena, rhs) {
-        return push_linear(
-            arena,
-            LinearTerms {
-                coeffs: t.coeffs.into_iter().map(|(v, c)| (v, -c)).collect(),
-                constant: -t.constant,
-            },
-        );
+    if let Some(mut t) = as_linear(arena, rhs) {
+        t.coeffs.iter_mut().for_each(|(_, c)| *c = -*c);
+        t.constant = -t.constant;
+        return push_linear(arena, t);
     }
     arena.push(ExprNode::Neg(rhs))
 }
