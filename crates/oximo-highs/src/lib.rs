@@ -17,7 +17,7 @@
 mod options;
 mod translate;
 
-pub use options::{HighsMethod, HighsOptions};
+pub use options::{HighsMethod, HighsOptions, HighsPresolve};
 pub use translate::solve;
 
 use oximo_core::{Model, ModelKind};

@@ -1,21 +1,22 @@
 use highs::Model as HighsModel;
-use oximo_solver::{HasMip, HasUniversal, MipOptions, Presolve, UniversalOptions};
+use oximo_solver::{HasUniversal, UniversalOptions};
 
 /// HiGHS-specific solver options.
-///
-/// Universal options (`time_limit`, `threads`, `verbose`) come from the embedded
-/// [`UniversalOptions`] via [`UniversalOptionsExt`](oximo_solver::UniversalOptionsExt).
-/// LP/MILP options (`mip_gap`, `presolve`) come from the embedded [`MipOptions`]
-/// via [`MipOptionsExt`](oximo_solver::MipOptionsExt). HiGHS-only options
-/// (`method`, `parallel`) live as their own fields.
 #[derive(Clone, Debug, Default)]
 pub struct HighsOptions {
     pub universal: UniversalOptions,
-    pub mip: MipOptions,
-    /// LP / MILP algorithm choice. Maps to the HiGHS `solver` option.
+    pub mip_gap: Option<f64>,
+    pub presolve: Option<HighsPresolve>,
     pub method: Option<HighsMethod>,
-    /// Enable HiGHS parallel solving. Maps to the HiGHS `parallel` option.
     pub parallel: Option<bool>,
+}
+
+/// HiGHS presolve options.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HighsPresolve {
+    Off,
+    On,
+    Auto,
 }
 
 /// HiGHS LP / root-relaxation algorithm.
@@ -31,6 +32,18 @@ pub enum HighsMethod {
 }
 
 impl HighsOptions {
+    #[must_use]
+    pub fn mip_gap(mut self, gap: f64) -> Self {
+        self.mip_gap = Some(gap);
+        self
+    }
+
+    #[must_use]
+    pub fn presolve(mut self, p: HighsPresolve) -> Self {
+        self.presolve = Some(p);
+        self
+    }
+
     #[must_use]
     pub fn method(mut self, m: HighsMethod) -> Self {
         self.method = Some(m);
@@ -54,16 +67,6 @@ impl HasUniversal for HighsOptions {
     }
 }
 
-impl HasMip for HighsOptions {
-    fn mip(&self) -> &MipOptions {
-        &self.mip
-    }
-
-    fn mip_mut(&mut self) -> &mut MipOptions {
-        &mut self.mip
-    }
-}
-
 /// Apply typed [`HighsOptions`] onto a live HiGHS model.
 pub(crate) fn apply(model: &mut HighsModel, o: &HighsOptions) {
     if let Some(d) = o.universal.time_limit {
@@ -76,10 +79,10 @@ pub(crate) fn apply(model: &mut HighsModel, o: &HighsOptions) {
         model.set_option("output_flag", b);
         model.set_option("log_to_console", b);
     }
-    if let Some(g) = o.mip.mip_gap {
+    if let Some(g) = o.mip_gap {
         model.set_option("mip_rel_gap", g);
     }
-    if let Some(p) = o.mip.presolve {
+    if let Some(p) = o.presolve {
         model.set_option("presolve", presolve_str(p));
     }
     if let Some(m) = o.method {
@@ -90,11 +93,11 @@ pub(crate) fn apply(model: &mut HighsModel, o: &HighsOptions) {
     }
 }
 
-fn presolve_str(p: Presolve) -> &'static str {
+fn presolve_str(p: HighsPresolve) -> &'static str {
     match p {
-        Presolve::Off => "off",
-        Presolve::On => "on",
-        Presolve::Auto => "choose",
+        HighsPresolve::Off => "off",
+        HighsPresolve::On => "on",
+        HighsPresolve::Auto => "choose",
     }
 }
 
@@ -112,7 +115,7 @@ mod tests {
     use std::time::Duration;
 
     use highs::{RowProblem, Sense as HighsSense};
-    use oximo_solver::{MipOptionsExt, Presolve, UniversalOptionsExt};
+    use oximo_solver::UniversalOptionsExt;
 
     use super::*;
 
@@ -127,14 +130,14 @@ mod tests {
             .threads(8)
             .verbose(true)
             .mip_gap(0.01)
-            .presolve(Presolve::Off)
+            .presolve(HighsPresolve::Off)
             .method(HighsMethod::Ipm)
             .parallel(true);
         assert_eq!(o.universal.time_limit, Some(Duration::from_secs(30)));
         assert_eq!(o.universal.threads, Some(8));
         assert_eq!(o.universal.verbose, Some(true));
-        assert_eq!(o.mip.mip_gap, Some(0.01));
-        assert_eq!(o.mip.presolve, Some(Presolve::Off));
+        assert_eq!(o.mip_gap, Some(0.01));
+        assert_eq!(o.presolve, Some(HighsPresolve::Off));
         assert_eq!(o.method, Some(HighsMethod::Ipm));
         assert_eq!(o.parallel, Some(true));
     }
@@ -153,7 +156,7 @@ mod tests {
             .threads(1)
             .verbose(false)
             .mip_gap(0.01)
-            .presolve(Presolve::Off)
+            .presolve(HighsPresolve::Off)
             .method(HighsMethod::Simplex)
             .parallel(false);
         apply(&mut m, &o);
@@ -171,7 +174,7 @@ mod tests {
 
     #[test]
     fn apply_every_presolve_variant() {
-        for presolve in [Presolve::Off, Presolve::On, Presolve::Auto] {
+        for presolve in [HighsPresolve::Off, HighsPresolve::On, HighsPresolve::Auto] {
             let mut m = empty_highs_model();
             apply(&mut m, &HighsOptions::default().presolve(presolve));
         }
