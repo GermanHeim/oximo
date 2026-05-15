@@ -91,7 +91,7 @@ cargo run -p oximo --example gurobi --features gurobi
 | `.mip_gap(f64)`       | `MIPGap`     | none    |
 | `.presolve(Presolve)` | `Presolve`   | none    |
 
-`Presolve` variants: `Auto` (-1), `Off` (0), `On` (2).
+`Presolve` variants: `Auto`: `-1`, `Off`: `0`, `Conservative`: `1`, `Aggressive`: `2`.
 
 ### Gurobi-specific options (selected)
 
@@ -122,7 +122,7 @@ let opts = GurobiOptions::default()
     .time_limit(Duration::from_secs(120))
     .threads(8)
     .mip_gap(0.01)
-    .presolve(Presolve::On)
+    .presolve(Presolve::Aggressive)
     .mip_focus(1)
     .concurrent_mip(2)
     .seed(101)
