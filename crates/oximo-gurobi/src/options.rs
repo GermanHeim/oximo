@@ -1,21 +1,33 @@
 use grb::Model as GrbModel;
 use grb::parameter::{DoubleParam, IntParam, StrParam};
-use oximo_solver::{HasMip, HasUniversal, MipOptions, Presolve, UniversalOptions};
+use oximo_solver::{HasUniversal, UniversalOptions};
+
+/// Gurobi presolve level. Maps to the Gurobi `Presolve` parameter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GurobiPresolve {
+    /// Automatic (`-1`). Let Gurobi decide.
+    Auto,
+    /// Off (`0`).
+    Off,
+    /// Conservative (`1`).
+    Conservative,
+    /// Aggressive (`2`).
+    Aggressive,
+}
 
 /// Gurobi-specific solver options.
 ///
 /// Universal options (`time_limit`, `threads`, `verbose`) come from the embedded
 /// [`UniversalOptions`] via [`UniversalOptionsExt`](oximo_solver::UniversalOptionsExt).
-/// LP/MILP options (`mip_gap`, `presolve`) come from the embedded [`MipOptions`]
-/// via [`MipOptionsExt`](oximo_solver::MipOptionsExt).
-///
-/// See the [Gurobi parameter reference](https://docs.gurobi.com/projects/optimizer/en/current/reference/parameters.html)
+/// All other options are Gurobi-specific. See the
+/// [Gurobi parameter reference](https://docs.gurobi.com/projects/optimizer/en/current/reference/parameters.html)
 /// for semantics. Method names are the snake_case of the official parameter
 /// name (e.g. `ConcurrentMIP` -> `.concurrent_mip(2)`).
 #[derive(Clone, Debug, Default)]
 pub struct GurobiOptions {
     pub universal: UniversalOptions,
-    pub mip: MipOptions,
+    pub mip_gap: Option<f64>,
+    pub presolve: Option<GurobiPresolve>,
     int_params: Vec<(IntParam, i32)>,
     double_params: Vec<(DoubleParam, f64)>,
     str_params: Vec<(StrParam, String)>,
@@ -251,6 +263,19 @@ impl GurobiOptions {
     );
 }
 
+impl GurobiOptions {
+    #[must_use]
+    pub fn mip_gap(mut self, gap: f64) -> Self {
+        self.mip_gap = Some(gap);
+        self
+    }
+
+    pub fn presolve(mut self, p: GurobiPresolve) -> Self {
+        self.presolve = Some(p);
+        self
+    }
+}
+
 impl HasUniversal for GurobiOptions {
     fn universal(&self) -> &UniversalOptions {
         &self.universal
@@ -258,16 +283,6 @@ impl HasUniversal for GurobiOptions {
 
     fn universal_mut(&mut self) -> &mut UniversalOptions {
         &mut self.universal
-    }
-}
-
-impl HasMip for GurobiOptions {
-    fn mip(&self) -> &MipOptions {
-        &self.mip
-    }
-
-    fn mip_mut(&mut self) -> &mut MipOptions {
-        &mut self.mip
     }
 }
 
@@ -282,14 +297,15 @@ pub(crate) fn apply(model: &mut GrbModel, o: &GurobiOptions) -> Result<(), grb::
     if let Some(b) = o.universal.verbose {
         model.set_param(grb::param::OutputFlag, i32::from(b))?;
     }
-    if let Some(g) = o.mip.mip_gap {
+    if let Some(g) = o.mip_gap {
         model.set_param(grb::param::MIPGap, g)?;
     }
-    if let Some(p) = o.mip.presolve {
+    if let Some(p) = o.presolve {
         let v = match p {
-            Presolve::Off => 0,
-            Presolve::Auto => -1,
-            Presolve::On => 2,
+            GurobiPresolve::Off => 0,
+            GurobiPresolve::Auto => -1,
+            GurobiPresolve::Conservative => 1,
+            GurobiPresolve::Aggressive => 2,
         };
         model.set_param(grb::param::Presolve, v)?;
     }
@@ -309,7 +325,7 @@ pub(crate) fn apply(model: &mut GrbModel, o: &GurobiOptions) -> Result<(), grb::
 mod tests {
     use std::time::Duration;
 
-    use oximo_solver::{MipOptionsExt, Presolve, UniversalOptionsExt};
+    use oximo_solver::UniversalOptionsExt;
 
     use super::*;
 
@@ -320,12 +336,12 @@ mod tests {
             .threads(4)
             .verbose(false)
             .mip_gap(0.05)
-            .presolve(Presolve::On);
+            .presolve(GurobiPresolve::Aggressive);
         assert_eq!(o.universal.time_limit, Some(Duration::from_secs(60)));
         assert_eq!(o.universal.threads, Some(4));
         assert_eq!(o.universal.verbose, Some(false));
-        assert_eq!(o.mip.mip_gap, Some(0.05));
-        assert_eq!(o.mip.presolve, Some(Presolve::On));
+        assert_eq!(o.mip_gap, Some(0.05));
+        assert_eq!(o.presolve, Some(GurobiPresolve::Aggressive));
         assert!(o.int_params.is_empty());
     }
 

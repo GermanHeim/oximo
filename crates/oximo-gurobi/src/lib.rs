@@ -3,7 +3,7 @@
 mod options;
 mod translate;
 
-pub use options::GurobiOptions;
+pub use options::{GurobiOptions, GurobiPresolve};
 pub use translate::solve;
 
 use oximo_core::{Model, ModelKind};
