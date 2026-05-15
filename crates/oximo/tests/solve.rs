@@ -249,3 +249,30 @@ fn lp_export_lists_binaries_and_integers() {
     assert!(s[bin_start..].contains(" x"));
     assert!(!s[bin_start..].contains(" y"));
 }
+
+#[cfg(feature = "io")]
+#[test]
+fn mps_columns_nonzero_count() {
+    // 5 variables, 5 constraints, each constraint involves all 5 variables.
+    // COLUMNS section must have exactly 5*5 + 5 = 30 data lines
+    let m = Model::new("dense");
+    let xs: Vec<_> = (0..5).map(|i| m.var(format!("x{i}")).lb(0.0).build()).collect();
+    for i in 0..5usize {
+        let row = oximo::prelude::sum(xs.iter().copied());
+        m.constraint(format!("c{i}"), row.le(10.0));
+    }
+    m.minimize(oximo::prelude::sum(xs.iter().copied()));
+
+    let s = oximo::io::to_mps_string(&m).unwrap();
+
+    let cols_start = s.find("COLUMNS\n").unwrap() + "COLUMNS\n".len();
+    let rhs_start = s.find("RHS\n").unwrap();
+    let cols_section = &s[cols_start..rhs_start];
+
+    let data_lines: Vec<&str> = cols_section
+        .lines()
+        .filter(|l| !l.contains("'MARKER'"))
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+    assert_eq!(data_lines.len(), 30, "expected 30 COLUMNS entries, got {}", data_lines.len());
+}
