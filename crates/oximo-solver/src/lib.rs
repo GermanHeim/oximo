@@ -9,10 +9,7 @@ pub mod result;
 pub mod solver;
 pub mod status;
 
-pub use options::{
-    HasMip, HasUniversal, MipOptions, MipOptionsExt, Presolve, UniversalOptions,
-    UniversalOptionsExt,
-};
+pub use options::{HasUniversal, UniversalOptions, UniversalOptionsExt};
 pub use result::SolverResult;
 pub use solver::Solver;
 pub use status::{SolverError, SolverStatus};

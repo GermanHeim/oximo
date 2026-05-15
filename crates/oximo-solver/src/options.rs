@@ -10,37 +10,12 @@ pub struct UniversalOptions {
     pub verbose: Option<bool>,
 }
 
-/// Options specific to LP / MILP solvers. NLP backends do not embed this.
-/// Each LP/MILP options struct embeds this via [`HasMip`]; the
-/// [`MipOptionsExt`] blanket impl provides `mip_gap` and `presolve` setters.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct MipOptions {
-    pub mip_gap: Option<f64>,
-    pub presolve: Option<Presolve>,
-}
-
-/// Presolve strategy for LP / MILP backends.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Presolve {
-    Off,
-    On,
-    Auto,
-}
-
 /// Implemented by every backend-specific options struct.
 /// Gives the [`UniversalOptionsExt`] blanket impl access to the embedded
 /// [`UniversalOptions`].
 pub trait HasUniversal {
     fn universal(&self) -> &UniversalOptions;
     fn universal_mut(&mut self) -> &mut UniversalOptions;
-}
-
-/// Implemented by LP / MILP backend options structs.
-/// Gives the [`MipOptionsExt`] blanket impl access to the embedded
-/// [`MipOptions`].
-pub trait HasMip {
-    fn mip(&self) -> &MipOptions;
-    fn mip_mut(&mut self) -> &mut MipOptions;
 }
 
 /// Builder setters available on every backend options struct.
@@ -66,35 +41,15 @@ pub trait UniversalOptionsExt: HasUniversal + Sized {
 
 impl<T: HasUniversal> UniversalOptionsExt for T {}
 
-/// Builder setters available only on LP / MILP backend options structs.
-pub trait MipOptionsExt: HasMip + Sized {
-    #[must_use]
-    fn mip_gap(mut self, gap: f64) -> Self {
-        self.mip_mut().mip_gap = Some(gap);
-        self
-    }
-
-    #[must_use]
-    fn presolve(mut self, p: Presolve) -> Self {
-        self.mip_mut().presolve = Some(p);
-        self
-    }
-}
-
-impl<T: HasMip> MipOptionsExt for T {}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
     use super::*;
 
-    // A minimal stand-in that implements both traits so we can test the
-    // blanket ext impls without pulling in any backend crate.
     #[derive(Default)]
     struct TestOpts {
         pub universal: UniversalOptions,
-        pub mip: MipOptions,
     }
     impl HasUniversal for TestOpts {
         fn universal(&self) -> &UniversalOptions {
@@ -102,14 +57,6 @@ mod tests {
         }
         fn universal_mut(&mut self) -> &mut UniversalOptions {
             &mut self.universal
-        }
-    }
-    impl HasMip for TestOpts {
-        fn mip(&self) -> &MipOptions {
-            &self.mip
-        }
-        fn mip_mut(&mut self) -> &mut MipOptions {
-            &mut self.mip
         }
     }
 
@@ -122,32 +69,11 @@ mod tests {
     }
 
     #[test]
-    fn mip_default_is_all_none() {
-        let m = MipOptions::default();
-        assert!(m.mip_gap.is_none());
-        assert!(m.presolve.is_none());
-    }
-
-    #[test]
     fn universal_builder_chain() {
         let o = TestOpts::default().time_limit(Duration::from_secs(60)).threads(4).verbose(false);
         assert_eq!(o.universal.time_limit, Some(Duration::from_secs(60)));
         assert_eq!(o.universal.threads, Some(4));
         assert_eq!(o.universal.verbose, Some(false));
-    }
-
-    #[test]
-    fn mip_builder_chain() {
-        let o = TestOpts::default().mip_gap(0.01).presolve(Presolve::Off);
-        assert_eq!(o.mip.mip_gap, Some(0.01));
-        assert_eq!(o.mip.presolve, Some(Presolve::Off));
-    }
-
-    #[test]
-    fn presolve_variants_are_distinct() {
-        assert_ne!(Presolve::Off, Presolve::On);
-        assert_ne!(Presolve::On, Presolve::Auto);
-        assert_ne!(Presolve::Auto, Presolve::Off);
     }
 
     #[test]
@@ -161,7 +87,6 @@ mod tests {
 
     #[test]
     fn last_set_wins_for_same_field() {
-        // Builder overwrites the same field, last call wins.
         let o = TestOpts::default().threads(1).threads(8);
         assert_eq!(o.universal.threads, Some(8));
     }
