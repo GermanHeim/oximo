@@ -1,0 +1,823 @@
+//! Per-solver typed option structs and [`GamsSolverConfig`].
+// TODO: Add more SolverConfig variants for other solvers when we add NLP/MINLP support
+
+use std::fmt::Write as FmtWrite;
+
+use crate::options::GamsSolver;
+
+// - Config enum
+
+/// Selects a GAMS sub-solver and optionally carries typed options written to
+/// a `<solver>.opt` file before invoking GAMS.
+///
+/// Use [`GamsSolverConfig::Named`] to select a solver by name with no extra
+/// options.
+///
+/// A [`From<GamsSolver>`] impl allows passing a bare `GamsSolver` wherever
+/// a `GamsSolverConfig` is expected.
+///
+/// References:
+/// - "GAMS Solver Manuals," GAMS Development Corporation.
+///   <https://www.gams.com/latest/docs/S_MAIN.html#SOLVERS_MODEL_TYPES> (accessed May 14, 2026).
+#[derive(Clone, Debug)]
+pub enum GamsSolverConfig {
+    Baron(GamsBaronOptions),
+    Cbc(GamsCbcOptions),
+    Cplex(GamsCplexOptions),
+    Gurobi(GamsGurobiOptions),
+    Highs(GamsHighsOptions),
+    Ipopt(GamsIpoptOptions),
+    Knitro(GamsKnitroOptions),
+    Mosek(GamsMosekOptions),
+    Scip(GamsScipOptions),
+    Xpress(GamsXpressOptions),
+    /// Any solver selectable by name with no typed option file.
+    Named(GamsSolver),
+}
+
+impl GamsSolverConfig {
+    /// GAMS solver keyword for `option {LP|MIP} = ...;`.
+    #[must_use]
+    pub fn gams_name(&self) -> &str {
+        match self {
+            Self::Baron(_) => "BARON",
+            Self::Cbc(_) => "CBC",
+            Self::Cplex(_) => "CPLEX",
+            Self::Gurobi(_) => "GUROBI",
+            Self::Highs(_) => "HIGHS",
+            Self::Ipopt(_) => "IPOPT",
+            Self::Knitro(_) => "KNITRO",
+            Self::Mosek(_) => "MOSEK",
+            Self::Scip(_) => "SCIP",
+            Self::Xpress(_) => "XPRESS",
+            Self::Named(s) => s.name(),
+        }
+    }
+
+    /// Write options to `buf`. Returns `true` if anything was written.
+    /// When `true`, the caller should write `buf` to `<solver_lowercase>.opt`
+    /// in the GAMS working directory and set `model.optfile = 1`.
+    #[must_use]
+    pub fn write_opt_file(&self, buf: &mut String) -> bool {
+        match self {
+            Self::Baron(o) => o.write(buf),
+            Self::Cbc(o) => o.write(buf),
+            Self::Cplex(o) => o.write(buf),
+            Self::Gurobi(o) => o.write(buf),
+            Self::Highs(o) => o.write(buf),
+            Self::Ipopt(o) => o.write(buf),
+            Self::Knitro(o) => o.write(buf),
+            Self::Mosek(o) => o.write(buf),
+            Self::Scip(o) => o.write(buf),
+            Self::Xpress(o) => o.write(buf),
+            Self::Named(_) => false,
+        }
+    }
+}
+
+impl From<GamsSolver> for GamsSolverConfig {
+    fn from(s: GamsSolver) -> Self {
+        Self::Named(s)
+    }
+}
+
+// - Helpers
+
+fn kv(buf: &mut String, key: &str, val: impl std::fmt::Display) {
+    writeln!(buf, "{key} {val}").unwrap();
+}
+
+fn kv_eq(buf: &mut String, key: &str, val: impl std::fmt::Display) {
+    writeln!(buf, "{key} = {val}").unwrap();
+}
+
+// - BARON
+
+/// Options for the BARON global solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_BARON.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsBaronOptions {
+    /// Max wall-clock time in seconds (`MaxTime`)
+    pub max_time: Option<f64>,
+    /// Max branch-and-reduce iterations (`MaxIter`)
+    pub max_iter: Option<i64>,
+    /// Relative optimality gap (`EpsR`)
+    pub eps_r: Option<f64>,
+    /// Absolute optimality gap (`EpsA`)
+    pub eps_a: Option<f64>,
+    /// Absolute constraint feasibility tolerance (`AbsConFeasTol`)
+    pub abs_con_feas_tol: Option<f64>,
+    /// Absolute integrality tolerance (`AbsIntFeasTol`)
+    pub abs_int_feas_tol: Option<f64>,
+    /// Threads for MIP subproblems (`Threads`)
+    pub threads: Option<u32>,
+    /// Local searches in preprocessing (`NumLoc`)
+    pub num_loc: Option<i32>,
+    /// Number of feasible solutions to find (`NumSol`)
+    pub num_sol: Option<i32>,
+    /// Objective cutoff (`CutOff`)
+    pub cut_off: Option<f64>,
+}
+
+impl GamsBaronOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("MaxTime", self.max_time);
+        w!("MaxIter", self.max_iter);
+        w!("EpsR", self.eps_r);
+        w!("EpsA", self.eps_a);
+        w!("AbsConFeasTol", self.abs_con_feas_tol);
+        w!("AbsIntFeasTol", self.abs_int_feas_tol);
+        w!("Threads", self.threads);
+        w!("NumLoc", self.num_loc);
+        w!("NumSol", self.num_sol);
+        w!("CutOff", self.cut_off);
+        n > 0
+    }
+}
+
+// - CBC
+
+/// `presolve` setting for CBC.
+#[derive(Clone, Debug)]
+pub enum GamsCbcPresolve {
+    On,
+    Off,
+    More,
+}
+
+/// `cuts` setting for CBC.
+#[derive(Clone, Debug)]
+pub enum GamsCbcCuts {
+    Off,
+    On,
+    Root,
+    IfMove,
+    ForceOn,
+}
+
+/// Options for the CBC LP/MIP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_CBC.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsCbcOptions {
+    pub threads: Option<u32>,
+    /// Relative MIP gap (`optcr`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`optca`)
+    pub mip_abs_gap: Option<f64>,
+    /// Max branch-and-bound nodes (`nodlim`)
+    pub node_limit: Option<u64>,
+    pub presolve: Option<GamsCbcPresolve>,
+    pub cuts: Option<GamsCbcCuts>,
+    /// Enable MIP heuristics (`heuristics`)
+    pub heuristics: Option<bool>,
+}
+
+impl GamsCbcOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("threads", self.threads);
+        w!("optcr", self.mip_rel_gap);
+        w!("optca", self.mip_abs_gap);
+        w!("nodlim", self.node_limit);
+        if let Some(p) = &self.presolve {
+            kv(
+                buf,
+                "presolve",
+                match p {
+                    GamsCbcPresolve::On => "on",
+                    GamsCbcPresolve::Off => "off",
+                    GamsCbcPresolve::More => "more",
+                },
+            );
+            n += 1;
+        }
+        if let Some(c) = &self.cuts {
+            kv(
+                buf,
+                "cuts",
+                match c {
+                    GamsCbcCuts::Off => "off",
+                    GamsCbcCuts::On => "on",
+                    GamsCbcCuts::Root => "root",
+                    GamsCbcCuts::IfMove => "ifmove",
+                    GamsCbcCuts::ForceOn => "forceOn",
+                },
+            );
+            n += 1;
+        }
+        if let Some(h) = self.heuristics {
+            kv(buf, "heuristics", i32::from(h));
+            n += 1;
+        }
+        n > 0
+    }
+}
+
+// - CPLEX
+
+/// `mipemphasis` strategy for CPLEX.
+#[derive(Clone, Debug)]
+pub enum GamsCplexMipEmphasis {
+    /// Balanced: feasibility and optimality (0)
+    Balanced,
+    /// Emphasize feasibility (1)
+    Feasibility,
+    /// Emphasize proving optimality (2)
+    Optimality,
+    /// Emphasize best bound (3)
+    BestBound,
+    /// Emphasize hidden feasibility (4)
+    HiddenFeasibility,
+}
+
+/// Options for the CPLEX LP/MIP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_CPLEX.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsCplexOptions {
+    pub threads: Option<u32>,
+    /// Relative MIP gap (`epgap`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`epagap`)
+    pub mip_abs_gap: Option<f64>,
+    /// Max B&B nodes (`nodelim`)
+    pub node_limit: Option<u64>,
+    /// Limit on integer solutions found (`intsollim`)
+    pub int_sol_limit: Option<u32>,
+    /// Enable presolve (`preind`)
+    pub presolve: Option<bool>,
+    /// MIP solution tactics (`mipemphasis`)
+    pub mip_emphasis: Option<GamsCplexMipEmphasis>,
+    /// Node selection (`nodesel`)
+    pub node_select: Option<i32>,
+    /// Variable selection (`varsel`)
+    pub var_select: Option<i32>,
+    /// Integrality tolerance (`epint`)
+    pub int_tol: Option<f64>,
+    /// Feasibility tolerance (`eprhs`)
+    pub feasibility_tol: Option<f64>,
+    /// Optimality tolerance (`epopt`)
+    pub optimality_tol: Option<f64>,
+    /// LP algorithm (`lpmethod`)
+    pub lp_method: Option<i32>,
+}
+
+impl GamsCplexOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("threads", self.threads);
+        w!("epgap", self.mip_rel_gap);
+        w!("epagap", self.mip_abs_gap);
+        w!("nodelim", self.node_limit);
+        w!("intsollim", self.int_sol_limit);
+        if let Some(pre) = self.presolve {
+            kv(buf, "preind", i32::from(pre));
+            n += 1;
+        }
+        if let Some(e) = &self.mip_emphasis {
+            kv(
+                buf,
+                "mipemphasis",
+                match e {
+                    GamsCplexMipEmphasis::Balanced => 0,
+                    GamsCplexMipEmphasis::Feasibility => 1,
+                    GamsCplexMipEmphasis::Optimality => 2,
+                    GamsCplexMipEmphasis::BestBound => 3,
+                    GamsCplexMipEmphasis::HiddenFeasibility => 4,
+                },
+            );
+            n += 1;
+        }
+        w!("nodesel", self.node_select);
+        w!("varsel", self.var_select);
+        w!("epint", self.int_tol);
+        w!("eprhs", self.feasibility_tol);
+        w!("epopt", self.optimality_tol);
+        w!("lpmethod", self.lp_method);
+        n > 0
+    }
+}
+
+// - GUROBI
+
+/// `mipfocus` strategy for Gurobi.
+#[derive(Clone, Debug)]
+pub enum GamsGurobiMipFocus {
+    /// Balanced (0)
+    Balanced,
+    /// Emphasize feasible solutions (1)
+    Feasibility,
+    /// Emphasize proving optimality (2)
+    Optimality,
+    /// Emphasize improving best bound (3)
+    BestBound,
+}
+
+/// Options for the Gurobi LP/MIP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_GUROBI.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsGurobiOptions {
+    pub threads: Option<u32>,
+    /// Relative MIP gap (`mipgap`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`mipgapabs`)
+    pub mip_abs_gap: Option<f64>,
+    /// Max nodes (`nodelimit`).
+    pub node_limit: Option<u64>,
+    /// Presolve level (`presolve`)
+    pub presolve: Option<i32>,
+    /// Cut generation (`cuts`)
+    pub cuts: Option<i32>,
+    /// MIP heuristics effort (`heuristics`)
+    pub heuristics: Option<f64>,
+    /// Algorithm (`method`)
+    pub method: Option<i32>,
+    /// MIP solution focus (`mipfocus`)
+    pub mip_focus: Option<GamsGurobiMipFocus>,
+    /// Primal feasibility tolerance (`feasibilitytol`)
+    pub feasibility_tol: Option<f64>,
+    /// Integer feasibility tolerance (`intfeastol`)
+    pub int_feas_tol: Option<f64>,
+    /// Dual feasibility tolerance (`optimalitytol`)
+    pub optimality_tol: Option<f64>,
+}
+
+impl GamsGurobiOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("threads", self.threads);
+        w!("mipgap", self.mip_rel_gap);
+        w!("mipgapabs", self.mip_abs_gap);
+        w!("nodelimit", self.node_limit);
+        w!("presolve", self.presolve);
+        w!("cuts", self.cuts);
+        w!("heuristics", self.heuristics);
+        w!("method", self.method);
+        if let Some(f) = &self.mip_focus {
+            kv(
+                buf,
+                "mipfocus",
+                match f {
+                    GamsGurobiMipFocus::Balanced => 0,
+                    GamsGurobiMipFocus::Feasibility => 1,
+                    GamsGurobiMipFocus::Optimality => 2,
+                    GamsGurobiMipFocus::BestBound => 3,
+                },
+            );
+            n += 1;
+        }
+        w!("feasibilitytol", self.feasibility_tol);
+        w!("intfeastol", self.int_feas_tol);
+        w!("optimalitytol", self.optimality_tol);
+        n > 0
+    }
+}
+
+// - HiGHS
+
+/// `presolve` setting for HiGHS.
+#[derive(Clone, Debug)]
+pub enum GamsHighsPresolve {
+    On,
+    Off,
+    Choose,
+}
+
+/// LP algorithm for HiGHS.
+#[derive(Clone, Debug)]
+pub enum GamsHighsSolver {
+    Simplex,
+    Ipm,
+    Ipx,
+    Pdlp,
+    Choose,
+}
+
+/// Options for the HiGHS LP/MIP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_HIGHS.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsHighsOptions {
+    pub threads: Option<u32>,
+    /// Relative MIP gap (`mip_rel_gap`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`mip_abs_gap`)
+    pub mip_abs_gap: Option<f64>,
+    /// Max nodes (`nodlim`)
+    pub node_limit: Option<u64>,
+    pub presolve: Option<GamsHighsPresolve>,
+    pub solver: Option<GamsHighsSolver>,
+    pub primal_feasibility_tol: Option<f64>,
+    pub dual_feasibility_tol: Option<f64>,
+    pub optimality_tol: Option<f64>,
+}
+
+impl GamsHighsOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv_eq(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("threads", self.threads);
+        w!("mip_rel_gap", self.mip_rel_gap);
+        w!("mip_abs_gap", self.mip_abs_gap);
+        w!("nodlim", self.node_limit);
+        if let Some(p) = &self.presolve {
+            kv_eq(
+                buf,
+                "presolve",
+                match p {
+                    GamsHighsPresolve::On => "on",
+                    GamsHighsPresolve::Off => "off",
+                    GamsHighsPresolve::Choose => "choose",
+                },
+            );
+            n += 1;
+        }
+        if let Some(s) = &self.solver {
+            kv_eq(
+                buf,
+                "solver",
+                match s {
+                    GamsHighsSolver::Simplex => "simplex",
+                    GamsHighsSolver::Ipm => "ipm",
+                    GamsHighsSolver::Ipx => "ipx",
+                    GamsHighsSolver::Pdlp => "pdlp",
+                    GamsHighsSolver::Choose => "choose",
+                },
+            );
+            n += 1;
+        }
+        w!("primal_feasibility_tolerance", self.primal_feasibility_tol);
+        w!("dual_feasibility_tolerance", self.dual_feasibility_tol);
+        w!("optimality_tolerance", self.optimality_tol);
+        n > 0
+    }
+}
+
+// - IPOPT
+
+/// Linear solver for IPOPT.
+#[derive(Clone, Debug)]
+pub enum GamsIpoptLinearSolver {
+    Mumps,
+    Ma27,
+    Ma57,
+    Ma86,
+    Ma97,
+    PardisoMkl,
+}
+
+/// Barrier parameter update strategy for IPOPT.
+#[derive(Clone, Debug)]
+pub enum GamsIpoptMuStrategy {
+    Monotone,
+    Adaptive,
+}
+
+/// Options for the IPOPT NLP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_IPOPT.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsIpoptOptions {
+    /// Max iterations (`max_iter`)
+    pub max_iter: Option<u32>,
+    /// Primary optimality tolerance (`tol`)
+    pub tol: Option<f64>,
+    /// Constraint violation tolerance (`constr_viol_tol`)
+    pub constr_viol_tol: Option<f64>,
+    /// Dual infeasibility tolerance (`dual_inf_tol`)
+    pub dual_inf_tol: Option<f64>,
+    /// Complementarity tolerance (`compl_inf_tol`)
+    pub compl_inf_tol: Option<f64>,
+    /// Relaxed convergence tolerance (`acceptable_tol`)
+    pub acceptable_tol: Option<f64>,
+    pub linear_solver: Option<GamsIpoptLinearSolver>,
+    /// Print level 0–12 (`print_level`)
+    pub print_level: Option<u32>,
+    pub mu_strategy: Option<GamsIpoptMuStrategy>,
+}
+
+impl GamsIpoptOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("max_iter", self.max_iter);
+        w!("tol", self.tol);
+        w!("constr_viol_tol", self.constr_viol_tol);
+        w!("dual_inf_tol", self.dual_inf_tol);
+        w!("compl_inf_tol", self.compl_inf_tol);
+        w!("acceptable_tol", self.acceptable_tol);
+        if let Some(ls) = &self.linear_solver {
+            kv(
+                buf,
+                "linear_solver",
+                match ls {
+                    GamsIpoptLinearSolver::Mumps => "mumps",
+                    GamsIpoptLinearSolver::Ma27 => "ma27",
+                    GamsIpoptLinearSolver::Ma57 => "ma57",
+                    GamsIpoptLinearSolver::Ma86 => "ma86",
+                    GamsIpoptLinearSolver::Ma97 => "ma97",
+                    GamsIpoptLinearSolver::PardisoMkl => "pardisomkl",
+                },
+            );
+            n += 1;
+        }
+        w!("print_level", self.print_level);
+        if let Some(mu) = &self.mu_strategy {
+            kv(
+                buf,
+                "mu_strategy",
+                match mu {
+                    GamsIpoptMuStrategy::Monotone => "monotone",
+                    GamsIpoptMuStrategy::Adaptive => "adaptive",
+                },
+            );
+            n += 1;
+        }
+        n > 0
+    }
+}
+
+// - KNITRO
+
+/// NLP algorithm for KNITRO.
+#[derive(Clone, Debug)]
+pub enum GamsKnitroAlgorithm {
+    /// Automatic (0)
+    Auto,
+    /// Interior-point / Direct (1)
+    InteriorDirect,
+    /// Interior-point / CG (2)
+    InteriorCg,
+    /// Active-set (3)
+    ActiveSet,
+    /// SQP (4)
+    Sqp,
+}
+
+/// Options for the KNITRO NLP/MIP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_KNITRO.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsKnitroOptions {
+    pub algorithm: Option<GamsKnitroAlgorithm>,
+    /// Max iterations (`maxit`)
+    pub max_iter: Option<u32>,
+    /// Relative KKT optimality tolerance (`opttol`)
+    pub opt_tol: Option<f64>,
+    /// Absolute KKT optimality tolerance (`opttol_abs`)
+    pub opt_tol_abs: Option<f64>,
+    /// Relative feasibility tolerance (`feastol`)
+    pub feas_tol: Option<f64>,
+    /// Absolute feasibility tolerance (`feastol_abs`)
+    pub feas_tol_abs: Option<f64>,
+    pub threads: Option<u32>,
+    /// Max B&B nodes (`mip_maxnodes`)
+    pub mip_max_nodes: Option<u64>,
+    /// Relative MIP gap (`mip_opt_gap_rel`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`mip_opt_gap_abs`)
+    pub mip_abs_gap: Option<f64>,
+}
+
+impl GamsKnitroOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        if let Some(alg) = &self.algorithm {
+            kv(
+                buf,
+                "nlp_algorithm",
+                match alg {
+                    GamsKnitroAlgorithm::Auto => 0,
+                    GamsKnitroAlgorithm::InteriorDirect => 1,
+                    GamsKnitroAlgorithm::InteriorCg => 2,
+                    GamsKnitroAlgorithm::ActiveSet => 3,
+                    GamsKnitroAlgorithm::Sqp => 4,
+                },
+            );
+            n += 1;
+        }
+        w!("maxit", self.max_iter);
+        w!("opttol", self.opt_tol);
+        w!("opttol_abs", self.opt_tol_abs);
+        w!("feastol", self.feas_tol);
+        w!("feastol_abs", self.feas_tol_abs);
+        w!("threads", self.threads);
+        w!("mip_maxnodes", self.mip_max_nodes);
+        w!("mip_opt_gap_rel", self.mip_rel_gap);
+        w!("mip_opt_gap_abs", self.mip_abs_gap);
+        n > 0
+    }
+}
+
+// - MOSEK
+
+/// Options for the MOSEK LP/MIP/NLP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_MOSEK.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsMosekOptions {
+    /// Threads (`MSK_IPAR_NUM_THREADS`)
+    pub threads: Option<u32>,
+    /// Relative MIP gap (`MSK_DPAR_MIO_TOL_REL_GAP`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`MSK_DPAR_MIO_TOL_ABS_GAP`)
+    pub mip_abs_gap: Option<f64>,
+    /// Max relaxations in B&B (`MSK_IPAR_MIO_MAX_NUM_RELAXS`)
+    pub max_relaxations: Option<i64>,
+    /// Max branches (`MSK_IPAR_MIO_MAX_NUM_BRANCHES`)
+    pub max_branches: Option<i64>,
+    /// Primal feasibility tolerance (`MSK_DPAR_INTPNT_TOL_PFEAS`)
+    pub primal_feas_tol: Option<f64>,
+    /// Dual feasibility tolerance (`MSK_DPAR_INTPNT_TOL_DFEAS`)
+    pub dual_feas_tol: Option<f64>,
+    /// MIO feasibility tolerance (`MSK_DPAR_MIO_TOL_FEAS`)
+    pub mio_feas_tol: Option<f64>,
+    /// Integer relaxation tolerance (`MSK_DPAR_MIO_TOL_ABS_RELAX_INT`)
+    pub int_relax_tol: Option<f64>,
+}
+
+impl GamsMosekOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("MSK_IPAR_NUM_THREADS", self.threads);
+        w!("MSK_DPAR_MIO_TOL_REL_GAP", self.mip_rel_gap);
+        w!("MSK_DPAR_MIO_TOL_ABS_GAP", self.mip_abs_gap);
+        w!("MSK_IPAR_MIO_MAX_NUM_RELAXS", self.max_relaxations);
+        w!("MSK_IPAR_MIO_MAX_NUM_BRANCHES", self.max_branches);
+        w!("MSK_DPAR_INTPNT_TOL_PFEAS", self.primal_feas_tol);
+        w!("MSK_DPAR_INTPNT_TOL_DFEAS", self.dual_feas_tol);
+        w!("MSK_DPAR_MIO_TOL_FEAS", self.mio_feas_tol);
+        w!("MSK_DPAR_MIO_TOL_ABS_RELAX_INT", self.int_relax_tol);
+        n > 0
+    }
+}
+
+// - SCIP
+
+/// Options for the SCIP LP/MIP/NLP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_SCIP.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsScipOptions {
+    /// Max nodes (`limits/nodes`)
+    pub node_limit: Option<i64>,
+    /// Relative MIP gap (`limits/gap`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`limits/gapabs`)
+    pub mip_abs_gap: Option<f64>,
+    /// Stop after N feasible solutions (`limits/solutions`)
+    pub sol_limit: Option<u32>,
+    /// Primal feasibility tolerance (`numerics/feastol`)
+    pub feas_tol: Option<f64>,
+    /// Dual feasibility tolerance (`numerics/dualfeastol`)
+    pub dual_feas_tol: Option<f64>,
+    /// Max presolve rounds (`presolving/maxrounds`)
+    pub presolve_rounds: Option<i32>,
+    /// Separation rounds at root (`separating/maxroundsroot`)
+    pub sep_rounds_root: Option<u32>,
+}
+
+impl GamsScipOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv_eq(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("limits/nodes", self.node_limit);
+        w!("limits/gap", self.mip_rel_gap);
+        w!("limits/gapabs", self.mip_abs_gap);
+        w!("limits/solutions", self.sol_limit);
+        w!("numerics/feastol", self.feas_tol);
+        w!("numerics/dualfeastol", self.dual_feas_tol);
+        w!("presolving/maxrounds", self.presolve_rounds);
+        w!("separating/maxroundsroot", self.sep_rounds_root);
+        n > 0
+    }
+}
+
+// - XPRESS
+
+/// Options for the XPRESS LP/MIP solver.
+///
+/// Reference: <https://www.gams.com/latest/docs/S_XPRESS.html>
+#[derive(Clone, Debug, Default)]
+pub struct GamsXpressOptions {
+    pub threads: Option<u32>,
+    /// Relative MIP gap (`mipRelStop`)
+    pub mip_rel_gap: Option<f64>,
+    /// Absolute MIP gap (`mipAbsStop`)
+    pub mip_abs_gap: Option<f64>,
+    /// Max nodes (`maxNode`)
+    pub node_limit: Option<u64>,
+    /// Enable presolve (`presolve`)
+    pub presolve: Option<bool>,
+    /// Cut strategy (`cutStrategy`)
+    pub cut_strategy: Option<i32>,
+    /// Primal feasibility tolerance (`feasTol`)
+    pub feas_tol: Option<f64>,
+    /// Dual optimality tolerance (`optimalityTol`)
+    pub optimality_tol: Option<f64>,
+    /// MIP integrality tolerance (`mipTol`)
+    pub mip_tol: Option<f64>,
+    /// LP algorithm (`defaultAlg`)
+    pub lp_algorithm: Option<i32>,
+}
+
+impl GamsXpressOptions {
+    fn write(&self, buf: &mut String) -> bool {
+        let mut n = 0usize;
+        macro_rules! w {
+            ($key:expr, $opt:expr) => {
+                if let Some(v) = $opt {
+                    kv(buf, $key, v);
+                    n += 1;
+                }
+            };
+        }
+        w!("threads", self.threads);
+        w!("mipRelStop", self.mip_rel_gap);
+        w!("mipAbsStop", self.mip_abs_gap);
+        w!("maxNode", self.node_limit);
+        if let Some(p) = self.presolve {
+            kv(buf, "presolve", i32::from(p));
+            n += 1;
+        }
+        w!("cutStrategy", self.cut_strategy);
+        w!("feasTol", self.feas_tol);
+        w!("optimalityTol", self.optimality_tol);
+        w!("mipTol", self.mip_tol);
+        w!("defaultAlg", self.lp_algorithm);
+        n > 0
+    }
+}
