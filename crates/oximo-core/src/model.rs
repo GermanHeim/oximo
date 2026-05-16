@@ -42,6 +42,7 @@ pub struct Model {
     pub(crate) constraints: RefCell<Vec<Constraint>>,
     pub(crate) constraint_names: RefCell<FxHashMap<SmolStr, ConstraintId>>,
     pub(crate) objective: RefCell<Option<Objective>>,
+    cached_kind: RefCell<Option<ModelKind>>,
 }
 
 impl std::fmt::Debug for Model {
@@ -65,6 +66,7 @@ impl Model {
             constraints: RefCell::new(Vec::new()),
             constraint_names: RefCell::new(FxHashMap::default()),
             objective: RefCell::new(None),
+            cached_kind: RefCell::new(None),
         }
     }
 
@@ -99,6 +101,7 @@ impl Model {
         names.insert(b.name, id);
         drop(vars);
         drop(names);
+        *self.cached_kind.borrow_mut() = None;
         Expr::from_var(&self.arena, id)
     }
 
@@ -151,6 +154,7 @@ impl Model {
             active: true,
         });
         by_name.insert(name, id);
+        *self.cached_kind.borrow_mut() = None;
         id
     }
 
@@ -189,6 +193,7 @@ impl Model {
 
     fn set_objective(&self, expr: Expr<'_>, sense: ObjectiveSense) {
         *self.objective.borrow_mut() = Some(Objective { expr: expr.id, sense });
+        *self.cached_kind.borrow_mut() = None;
     }
 
     pub fn objective(&self) -> Ref<'_, Option<Objective>> {
@@ -207,18 +212,24 @@ impl Model {
     // Classification
 
     /// Infer the [`ModelKind`] from current variables and expressions.
-    /// Call once before handing the model to a solver.
+    /// Result is cached and invalidated whenever variables, constraints, or the
+    /// objective change.
     pub fn kind(&self) -> ModelKind {
+        if let Some(k) = *self.cached_kind.borrow() {
+            return k;
+        }
         let arena = self.arena.borrow();
         let has_int = self.variables.borrow().iter().any(|v| v.domain.is_integer());
         let nonlinear = self.constraints.borrow().iter().any(|c| has_nonlinear(&arena, c.lhs))
             || self.objective.borrow().as_ref().is_some_and(|o| has_nonlinear(&arena, o.expr));
-        match (has_int, nonlinear) {
+        let k = match (has_int, nonlinear) {
             (false, false) => ModelKind::LP,
             (true, false) => ModelKind::MILP,
             (false, true) => ModelKind::NLP,
             (true, true) => ModelKind::MINLP,
-        }
+        };
+        *self.cached_kind.borrow_mut() = Some(k);
+        k
     }
 }
 
