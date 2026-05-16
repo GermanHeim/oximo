@@ -14,6 +14,7 @@ members = [
 version = "0.1.0"
 edition = "2024"
 description = "A Rust algebraic modeling library for solving optimization problems"
+readme = "README.md"
 keywords = ["optimization", "math", "science"]
 categories = ["mathematics", "science", "algorithms"]
 rust-version = "1.85"
