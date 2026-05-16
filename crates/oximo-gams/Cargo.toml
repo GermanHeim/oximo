@@ -1,0 +1,19 @@
+[package]
+name = "oximo-gams"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "GAMS writer and backend for oximo"
+
+[dependencies]
+oximo-expr.workspace = true
+oximo-core.workspace = true
+oximo-solver.workspace = true
+rustc-hash.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
