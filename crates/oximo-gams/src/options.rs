@@ -185,3 +185,64 @@ pub fn write_options(gms: &mut String, o: &GamsOptions, solve_type: &str) {
         writeln!(gms, "option {solve_type} = {};", s.gams_name()).unwrap();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use oximo_solver::UniversalOptionsExt;
+
+    use super::*;
+
+    #[test]
+    fn builder_sets_fields() {
+        use crate::solver_options::{GamsBaronOptions, GamsSolverConfig};
+        let o = GamsOptions::default()
+            .time_limit(Duration::from_secs(45))
+            .threads(2)
+            .mip_gap(0.001)
+            .verbose(true)
+            .solver(GamsSolverConfig::Baron(GamsBaronOptions::default()))
+            .gams_path("/opt/gams/gams");
+        assert_eq!(o.universal.time_limit, Some(Duration::from_secs(45)));
+        assert_eq!(o.universal.threads, Some(2));
+        assert_eq!(o.mip_gap, Some(0.001));
+        assert!(matches!(o.solver, Some(GamsSolverConfig::Baron(_))));
+        assert_eq!(o.gams_path.as_deref(), Some(std::path::Path::new("/opt/gams/gams")));
+    }
+
+    #[test]
+    fn write_options_emits_solver_baron() {
+        use crate::solver_options::{GamsBaronOptions, GamsSolverConfig};
+        let o = GamsOptions::default().solver(GamsSolverConfig::Baron(GamsBaronOptions::default()));
+        let mut gms = String::new();
+        write_options(&mut gms, &o, "MIP");
+        assert!(gms.contains("option MIP = BARON;"), "got: {gms}");
+    }
+
+    #[test]
+    fn write_options_emits_custom_solver_verbatim() {
+        let o = GamsOptions::default().solver(GamsSolver::Custom("MOSEK".into()));
+        let mut gms = String::new();
+        write_options(&mut gms, &o, "LP");
+        assert!(gms.contains("option LP = MOSEK;"), "got: {gms}");
+    }
+
+    #[test]
+    fn write_options_emits_time_and_gap() {
+        let o = GamsOptions::default().time_limit(Duration::from_secs(10)).mip_gap(0.05).threads(4);
+        let mut gms = String::new();
+        write_options(&mut gms, &o, "MIP");
+        assert!(gms.contains("option ResLim = 10"));
+        assert!(gms.contains("option OptCR = 0.05"));
+        assert!(gms.contains("option threads = 4"));
+    }
+
+    #[test]
+    fn write_options_empty_for_default() {
+        let o = GamsOptions::default();
+        let mut gms = String::new();
+        write_options(&mut gms, &o, "LP");
+        assert!(gms.is_empty());
+    }
+}
