@@ -48,7 +48,9 @@ pub fn solve(model: &Model, opts: &HighsOptions) -> Result<SolverResult, SolverE
     // Build the HiGHS row problem
     let mut pb = RowProblem::new();
     let mut cols: Vec<highs::Col> = Vec::with_capacity(vars.len());
-    for v in vars.iter() {
+    let mut has_initial = false;
+    let mut init_vals: Vec<f64> = vec![0.0; vars.len()];
+    for (i, v) in vars.iter().enumerate() {
         let bounds = v.lb..=v.ub;
         let coef = obj_coeffs[v.id.index()];
         let col = if v.domain.is_integer() {
@@ -57,6 +59,10 @@ pub fn solve(model: &Model, opts: &HighsOptions) -> Result<SolverResult, SolverE
             pb.add_column(coef, bounds)
         };
         cols.push(col);
+        if let Some(val) = v.initial {
+            init_vals[i] = val;
+            has_initial = true;
+        }
     }
 
     for c in constraints.iter() {
@@ -85,6 +91,9 @@ pub fn solve(model: &Model, opts: &HighsOptions) -> Result<SolverResult, SolverE
 
     let started = Instant::now();
     let mut hmodel = pb.optimise(sense);
+    if has_initial {
+        hmodel.set_solution(Some(&init_vals), None, None, None);
+    }
     apply_options(&mut hmodel, opts);
     let solved = hmodel.solve();
     let elapsed = started.elapsed();
