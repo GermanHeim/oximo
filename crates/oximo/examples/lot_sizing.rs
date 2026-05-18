@@ -42,6 +42,8 @@
 //! "The capacitated lot sizing problem: a review of models
 //! and algorithms", Omega, 31(5), 365-378, 2003.
 
+#![allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+
 #[cfg(any(feature = "gurobi", feature = "highs"))]
 use oximo::prelude::*;
 
@@ -127,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             t + 1,
             xt,
             ht,
-            if st == 1.0 { "Yes" } else { "No" },
+            if (st - 1.0).abs() < 1e-6 { "Yes" } else { "No" },
             period_cost
         );
     }
