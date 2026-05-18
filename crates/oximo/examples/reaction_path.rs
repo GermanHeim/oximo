@@ -33,6 +33,8 @@
 //! ```
 //! Requires a licensed GAMS installation with CPLEX on PATH.
 
+#![allow(clippy::cast_precision_loss)]
+
 #[cfg(any(feature = "gams", feature = "highs"))]
 use oximo::prelude::*;
 
@@ -130,7 +132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(obj) = result.objective {
         println!(
             "Acetone (y06, ch3coch3): {}",
-            if obj == 1.0 { "Synthesizable" } else { "Not synthesizable" }
+            if (obj - 1.0).abs() < 1e-6 { "Synthesizable" } else { "Not synthesizable" }
         );
     }
 
@@ -138,7 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .enumerate()
         .filter_map(|(i, var)| {
-            if result.value_of(*var).unwrap_or(0.0) == 1.0 { Some(CHEMICALS[i]) } else { None }
+            if (result.value_of(*var).unwrap_or(0.0) - 1.0).abs() < 1e-6 { Some(CHEMICALS[i]) } else { None }
         })
         .collect();
     if !synthesizable.is_empty() {
