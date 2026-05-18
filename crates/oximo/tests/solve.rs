@@ -35,6 +35,44 @@ fn knapsack_milp() {
 }
 
 #[test]
+fn lp_initial_values_do_not_affect_optimum() {
+    let m = Model::new("lp_warm");
+    let x = m.var("x").lb(0.0).initial(6.0).build();
+    let y = m.var("y").lb(0.0).ub(4.0).initial(4.0).build();
+    m.constraint("c1", (x + 2.0 * y).le(14.0));
+    m.constraint("c2", (3.0 * x - y).ge(0.0));
+    m.constraint("c3", (x - y).le(2.0));
+    m.maximize(3.0 * x + 4.0 * y);
+
+    let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
+    assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
+}
+
+#[test]
+fn milp_warm_start_finds_optimum() {
+    // Pass initial values that are not optimal,
+    // should still find the true optimum of 47 (items 4 and 6).
+    let weights = [3.0, 4.0, 2.0, 5.0, 1.0, 6.0, 7.0, 2.0];
+    let values = [10.0, 12.0, 5.0, 14.0, 3.0, 18.0, 22.0, 6.0];
+    let warm_start = [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0];
+
+    let m = Model::new("knapsack_warm");
+    let xs: Vec<_> = (0..weights.len())
+        .map(|i| m.var(format!("x{i}")).binary().initial(warm_start[i]).build())
+        .collect();
+    let weight_sum = sum(xs.iter().zip(weights.iter()).map(|(x, w)| *w * *x));
+    m.constraint("cap", weight_sum.le(15.0));
+    m.maximize(sum(xs.iter().zip(values.iter()).map(|(x, v)| *v * *x)));
+
+    let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective.unwrap() - 47.0).abs() < 1e-6);
+}
+
+#[test]
 fn infeasible_returns_status() {
     let m = Model::new("infeas");
     let x = m.var("x").lb(0.0).ub(1.0).build();
