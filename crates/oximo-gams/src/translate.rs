@@ -1,4 +1,5 @@
 use std::fmt::Write as FmtWrite;
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use std::{fs, io};
@@ -239,7 +240,9 @@ pub fn solve(
     }
     cmd.current_dir(&tmp_dir);
 
-    let output = cmd.output().map_err(|e| {
+    // When verbose, inherit stdio so that GAMS writes directly to the terminal in
+    // real time. When silent, capture output so errors can be surfaced later.
+    let launch_err = |e: io::Error| {
         let _ = fs::remove_dir_all(&tmp_dir);
         if e.kind() == io::ErrorKind::NotFound {
             SolverError::Backend(format!(
@@ -249,19 +252,27 @@ pub fn solve(
         } else {
             SolverError::Backend(format!("failed to launch GAMS: {e}"))
         }
-    })?;
-    let elapsed = started.elapsed();
-
-    let raw_log = if verbose || !output.status.success() {
-        let mut log = String::from_utf8_lossy(&output.stdout).into_owned();
-        if !output.stderr.is_empty() {
-            log.push('\n');
-            log.push_str(&String::from_utf8_lossy(&output.stderr));
-        }
-        Some(log)
-    } else {
-        None
     };
+
+    let (exit_ok, raw_log) = if verbose {
+        let status =
+            cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit()).status().map_err(launch_err)?;
+        (status.success(), None)
+    } else {
+        let out = cmd.output().map_err(launch_err)?;
+        let log = if out.status.success() {
+            None
+        } else {
+            let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
+            if !out.stderr.is_empty() {
+                s.push('\n');
+                s.push_str(&String::from_utf8_lossy(&out.stderr));
+            }
+            Some(s)
+        };
+        (out.status.success(), log)
+    };
+    let elapsed = started.elapsed();
 
     // - Parse solution file
     // Check the solution file before the exit code: GAMS may return a
@@ -276,13 +287,13 @@ pub fn solve(
         // (compilation error, license error, etc.).  Fall back to the listing.
         let listing = fs::read_to_string(tmp_dir.join("model.lst")).unwrap_or_default();
         let _ = fs::remove_dir_all(&tmp_dir);
-        let detail = if output.status.success() {
+        let detail = if exit_ok {
             format!(
                 "GAMS did not produce a solution file. \
                 Check the .gms listing for compilation errors.\n{listing}"
             )
         } else {
-            format!("GAMS exited with code {:?}.\n{listing}", output.status.code())
+            format!("GAMS exited with a non-zero exit code.\n{listing}")
         };
         return Err(SolverError::Backend(detail));
     };
