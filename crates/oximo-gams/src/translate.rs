@@ -149,6 +149,13 @@ pub fn solve(
             writeln!(gms, "v{i}.up = {};", fmt(v.ub)).unwrap();
         }
     }
+
+    // Initial levels (warm start)
+    for v in vars.iter() {
+        if let Some(val) = v.initial {
+            writeln!(gms, "v{}.l = {};", v.id.index(), fmt(val)).unwrap();
+        }
+    }
     writeln!(gms).unwrap();
 
     // Equations declaration
