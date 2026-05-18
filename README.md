@@ -30,11 +30,13 @@ println!("y   = {:?}", result.value_of(y)); // 4.0
 | `highs`  | HiGHS LP/MILP solver (bundled, no install)        | yes     |
 | `io`     | MPS and LP file writers                           | yes     |
 | `gurobi` | Gurobi LP/MILP solver (requires licensed install) | no      |
+| `gams`   | GAMS solver bridge (requires GAMS on PATH)        | no      |
 
 ```toml
 [dependencies]
 oximo = "0.1"                                      # HiGHS + MPS/LP writers
 oximo = { version = "0.1", features = ["gurobi"] } # add Gurobi
+oximo = { version = "0.1", features = ["gams"] }   # add GAMS backend
 ```
 
 ## Building models
@@ -123,6 +125,17 @@ let result = Gurobi.solve(&m, &GurobiOptions::default()
     .seed(101))?;
 ```
 
+### GAMS
+
+Requires GAMS on `PATH`. Supports solving models via GAMS solvers (CPLEX, BARON, etc.). See [`crates/oximo-gams/README.md`](crates/oximo-gams/README.md).
+
+```rust
+use oximo::prelude::*;
+use oximo::solvers::Gams;
+
+let result = Gams.solve(&m, &GamsOptions::default())?;
+```
+
 ## Reading results
 
 ```rust
@@ -170,10 +183,12 @@ io::write_lp(&m, "model.lp")?;
 | `oximo-io`     | MPS and LP writers                                    |
 | `oximo-highs`  | HiGHS backend                                         |
 | `oximo-gurobi` | Gurobi backend                                        |
+| `oximo-gams`   | GAMS writer and backend                               |
 
 ## Requirements
 
 - Gurobi feature: Gurobi, `GUROBI_HOME` set, valid license
+- GAMS feature: GAMS on `PATH`, valid license
 
 ## License
 
