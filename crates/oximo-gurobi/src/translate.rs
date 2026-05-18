@@ -57,6 +57,9 @@ pub fn solve(model: &Model, opts: &GurobiOptions) -> Result<SolverResult, Solver
         let gvar = add_var!(grb_model, vtype, obj: obj_coeffs[i], bounds: v.lb..v.ub, name: &format!("x{i}"))
             .map_err(map_grb_err)?;
         gurobi_vars.push(gvar);
+        if let Some(val) = v.initial {
+            grb_model.set_obj_attr(attr::Start, &gvar, val).map_err(map_grb_err)?;
+        }
     }
 
     let mut gurobi_constrs = Vec::with_capacity(constraints.len());
