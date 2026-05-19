@@ -20,10 +20,10 @@ pub use constraint::{Constraint, ConstraintExpr, ConstraintId, IntoRhs, Relate, 
 pub use domain::Domain;
 pub use error::{Error, Result};
 pub use indexed::IndexedVar;
-pub use model::{IndexedVarBuilder, Model, ModelKind};
+pub use model::{IndexedVarBuilder, Model, ModelKind, display_index_key};
 pub use objective::{Objective, ObjectiveSense};
 pub use param::Parameter;
-pub use set::{IndexKey, Set, SetIter};
+pub use set::{FromIndexKey, IndexKey, IndexTuple, Set, SetIter};
 pub use var::{VarBuilder, Variable};
 
 // Re-export the expression handle so downstream code does not need a separate
