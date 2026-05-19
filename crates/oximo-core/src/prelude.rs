@@ -2,9 +2,9 @@ pub use crate::constraint::{Constraint, ConstraintExpr, ConstraintId, IntoRhs, R
 pub use crate::domain::Domain;
 pub use crate::error::Error;
 pub use crate::indexed::IndexedVar;
-pub use crate::model::{IndexedVarBuilder, Model, ModelKind};
+pub use crate::model::{IndexedVarBuilder, Model, ModelKind, display_index_key};
 pub use crate::objective::{Objective, ObjectiveSense};
 pub use crate::param::Parameter;
-pub use crate::set::{IndexKey, Set, SetIter};
+pub use crate::set::{FromIndexKey, IndexKey, IndexTuple, Set, SetIter};
 pub use crate::var::{VarBuilder, Variable};
 pub use oximo_expr::{Expr, ExprId, VarId, sum};
