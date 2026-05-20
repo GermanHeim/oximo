@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 description = "Arena-allocated expression tree for the oximo optimization framework"
+readme = "README.md"
 
 [dependencies]
 smallvec = { workspace = true, features = ["union"] }
