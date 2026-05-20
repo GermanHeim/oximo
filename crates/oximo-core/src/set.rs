@@ -74,7 +74,11 @@ impl Set {
     /// Cartesian product of two sets. Inner tuple keys are flattened so a
     /// product `(a * b) * c` yields 3-element tuples, not nested 2-tuples.
     pub fn product(a: &Set, b: &Set) -> Self {
-        let mut out = Vec::with_capacity(a.len() * b.len());
+        let mut out = Vec::new();
+        if let Some(capacity) = a.len().checked_mul(b.len()) {
+            // best-effort, fall back to dynamic growth on OOM
+            let _ = out.try_reserve_exact(capacity);
+        }
         for ka in a {
             for kb in b {
                 let mut parts: Vec<IndexKey> = Vec::new();
@@ -97,10 +101,26 @@ impl Set {
                 Self::Range(v.iter().copied().filter(|i| f(&IndexKey::Int(*i))).collect())
             }
             Self::Strings(v) => Self::Strings(
-                v.iter().filter(|s| f(&IndexKey::Str((*s).clone()))).cloned().collect(),
+                v.iter()
+                    .filter_map(|s| {
+                        let key = IndexKey::Str(s.clone());
+                        f(&key).then(|| match key {
+                            IndexKey::Str(owned) => owned,
+                            _ => unreachable!(),
+                        })
+                    })
+                    .collect(),
             ),
             Self::Tuples(v) => Self::Tuples(
-                v.iter().filter(|t| f(&IndexKey::Tuple((*t).clone()))).cloned().collect(),
+                v.iter()
+                    .filter_map(|t| {
+                        let key = IndexKey::Tuple(t.clone());
+                        f(&key).then(|| match key {
+                            IndexKey::Tuple(owned) => owned,
+                            _ => unreachable!(),
+                        })
+                    })
+                    .collect(),
             ),
         }
     }
