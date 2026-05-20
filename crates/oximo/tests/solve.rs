@@ -193,6 +193,25 @@ fn mps_coefficients_and_rhs() {
 
 #[cfg(feature = "io")]
 #[test]
+fn mps_fixed_variable_emits_fx_bound() {
+    let m = Model::new("fixed");
+    let x = m.var("x").lb(0.0).ub(10.0).build();
+    let y = m.var("y").lb(0.0).ub(10.0).fix(3.5).build();
+    m.constraint("c", (x + y).le(20.0));
+    m.minimize(x + y);
+
+    let s = oximo::io::to_mps_string(&m).unwrap();
+
+    // y is fixed, must appear as FX at col 2, value at col 25
+    assert!(s.contains(" FX BND       y         3.5"), "got:\n{s}");
+    // x is not fixed, no FX line for x
+    assert!(!s.contains(" FX BND       x"), "got:\n{s}");
+    // y still appears in COLUMNS (constraint coefficients unchanged)
+    assert!(s.contains('y'), "got:\n{s}");
+}
+
+#[cfg(feature = "io")]
+#[test]
 fn mps_free_and_integer_bounds() {
     let m = Model::new("mixed");
     let _x = m.var("x").binary().build();
