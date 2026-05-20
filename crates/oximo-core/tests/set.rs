@@ -161,7 +161,7 @@ fn indexed_var_tuple_indexing() {
     let by_ref = x[&key];
 
     // IDs must differ, the two scalars are not the same variable.
-    assert_ne!(format!("{by_tuple:?}"), format!("{by_ref:?}"));
+    assert_ne!(by_tuple.id, by_ref.id);
 }
 
 #[test]
@@ -285,7 +285,7 @@ fn from_index_key_panics_on_arity_mismatch() {
 }
 
 #[test]
-#[should_panic(expected = "negative key")]
+#[should_panic(expected = "out of usize range")]
 fn from_index_key_panics_on_negative_usize() {
     let k = IndexKey::Int(-1);
     let _ = usize::from_index_key(&k);
