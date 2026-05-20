@@ -117,6 +117,10 @@ pub fn write_mps<W: Write>(model: &Model, out: &mut W) -> Result<(), IoError> {
     for v in vars.iter() {
         let lb = v.lb;
         let ub = v.ub;
+        if lb.is_finite() && (lb - ub).abs() < f64::EPSILON {
+            writeln!(out, " FX BND       {:<10}{lb}", v.name)?;
+            continue;
+        }
         let infinite_lo = lb == f64::NEG_INFINITY;
         let infinite_hi = ub == f64::INFINITY;
         match (infinite_lo, infinite_hi) {

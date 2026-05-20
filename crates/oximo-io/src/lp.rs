@@ -77,6 +77,14 @@ pub fn write_lp<W: Write>(model: &Model, out: &mut W) -> Result<(), IoError> {
         if matches!(v.domain, Domain::Binary) {
             continue;
         }
+        if v.lb.is_finite() && (v.lb - v.ub).abs() < f64::EPSILON {
+            if !wrote_bounds_header {
+                writeln!(out, "Bounds")?;
+                wrote_bounds_header = true;
+            }
+            writeln!(out, " {} <= {} <= {}", v.lb, v.name, v.ub)?;
+            continue;
+        }
         let lb_default = v.lb == 0.0;
         let ub_default = v.ub == f64::INFINITY;
         if lb_default && ub_default {
