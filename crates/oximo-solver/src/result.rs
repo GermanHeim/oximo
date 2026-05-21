@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use oximo_core::{ConstraintId, Expr, ExprNode, VarId};
+use oximo_core::{ConstraintId, Expr, ExprNode, IndexKey, IndexedVar, VarId};
 use rustc_hash::FxHashMap;
 
 use crate::status::SolverStatus;
@@ -54,5 +54,25 @@ impl SolverResult {
 
     pub fn dual_of(&self, c: ConstraintId) -> Option<f64> {
         self.dual.get(&c).copied()
+    }
+
+    /// Look up the primal value for a specific index of an [`IndexedVar`].
+    ///
+    /// Returns `None` if `key` is not in the variable's set or the solver did
+    /// not return a primal value for that scalar.
+    pub fn value_of_idx<K: Into<IndexKey>>(&self, var: &IndexedVar<'_>, key: K) -> Option<f64> {
+        var.get(key).and_then(|e| self.value_of(e))
+    }
+
+    /// Iterate over primal values for all entries of an [`IndexedVar`].
+    ///
+    /// Yields `(&IndexKey, f64)` for every index whose primal value is present
+    /// in the solution. To keep only nonzero values (common for sparse
+    /// solutions) chain `.filter(|(_, v)| *v != 0.0)`.
+    pub fn values_of<'iv, 'a>(
+        &'iv self,
+        var: &'iv IndexedVar<'a>,
+    ) -> impl Iterator<Item = (&'iv IndexKey, f64)> + 'iv {
+        var.iter().filter_map(|(k, e)| self.value_of(*e).map(|v| (k, v)))
     }
 }
