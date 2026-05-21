@@ -1,18 +1,4 @@
-//! Oximo: Rust algebraic modeling language for mathematical optimization.
-//!
-//! ```no_run
-//! use oximo::prelude::*;
-//!
-//! let m = Model::new("toy");
-//! let x = m.var("x").lb(0.0).build();
-//! let y = m.var("y").lb(0.0).ub(4.0).build();
-//! m.constraint("c1", (x + 2.0 * y).le(14.0));
-//! m.minimize(3.0 * x + 4.0 * y);
-//!
-//! let mut solver = oximo::solvers::Highs;
-//! let result = solver.solve(&m, &oximo::HighsOptions::default()).unwrap();
-//! assert!(result.status.has_solution());
-//! ```
+#![doc = include_str!("../../../README.md")]
 #![forbid(unsafe_code)]
 
 pub use oximo_core as core;

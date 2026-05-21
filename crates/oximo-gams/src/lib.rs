@@ -1,37 +1,4 @@
-//! GAMS writer and backend for oximo.
-//!
-//! Translates an oximo [`Model`] into a GAMS `.gms` file, invokes the GAMS
-//! executable via [`std::process::Command`], and parses the solution from a
-//! PUT-generated text file.
-//!
-//! # Requirements
-//!
-//! A licensed GAMS installation must be available. The executable is resolved
-//! from `PATH` by default, but can be overridden with [`GamsOptions::gams_path`] or
-//! [`Gams::with_exec`].
-//!
-//! # Supported options
-//!
-//! Common option ([`CommonOptions`](oximo_solver::CommonOptions)) honored:
-//!
-//! | Field        | GAMS statement                                                    |
-//! |--------------|-------------------------------------------------------------------|
-//! | `time_limit` | `option ResLim = <seconds>;`                                      |
-//! | `mip_gap`    | `option OptCR = <gap>;`                                           |
-//! | `threads`    | `option threads = <n>;`                                           |
-//! | `verbose`    | Forwards GAMS stdout/stderr to `raw_log` (suppresses `lo=0` flag) |
-//!
-//! GAMS-specific options ([`GamsOptions`]):
-//!
-//! | Field       | Description                                                                   |
-//! |-------------|-------------------------------------------------------------------------------|
-//! | `solver`    | Sub-solver name ([`GamsSolver::Baron`], `Cplex`, `Custom("MOSEK".into())`, …) |
-//! | `gams_path` | Path to the `gams` executable                                                 |
-//!
-//! # Per-solver typed options
-//!
-//! Pass a [`GamsSolverConfig`] to [`GamsOptions::solver`] to select a sub-solver
-//! and write a typed `<solver>.opt` file. GAMS picks it up via `model.optfile = 1`.
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 mod options;

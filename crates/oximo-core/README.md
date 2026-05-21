@@ -45,7 +45,7 @@ println!("kind = {:?}", m.kind()); // LP
 
 `Model` uses interior mutability (`RefCell`) so the builder API takes `&self`. This lets you hold a `&Model` reference, build variables and constraints, and immediately use the returned `Expr` handles, no `&mut` threading required.
 
-```rust
+```rust,ignore
 let m = Model::new("my_model");
 let x = m.var("x").lb(0.0).build(); // returns Expr<'_>
 m.constraint("cap", x.le(5.0));     // uses x while holding &m
@@ -55,7 +55,7 @@ Names are unique per registry. Registering a duplicate variable or constraint na
 
 ### Accessors
 
-```rust
+```rust,ignore
 m.num_variables()      // usize
 m.num_constraints()    // usize
 m.variables()          // Ref<'_, Vec<Variable>>
@@ -69,7 +69,7 @@ m.constraint_id("cap") // Option<ConstraintId>
 
 ### Fixing and unfixing variables
 
-```rust
+```rust,ignore
 m.fix_var(var_id, 3.0);         // lb = ub = 3.0
 m.unfix_var(var_id, 0.0, 10.0); // restore bounds
 ```
@@ -78,7 +78,7 @@ m.unfix_var(var_id, 0.0, 10.0); // restore bounds
 
 ### Scalar variable builder
 
-```rust
+```rust,ignore
 let x = m.var("x")
     .lb(0.0)              // lower bound (default: -inf)
     .ub(10.0)             // upper bound (default: +inf)
@@ -94,7 +94,7 @@ let n = m.var("n").integer().lb(0.0).build(); // Domain::Integer
 
 Creates one scalar variable per key in a `Set`, named `base[key]`.
 
-```rust
+```rust,ignore
 let i = Set::range(0..5);
 let x = m.indexed_var("x", &i)
     .lb(0.0)
@@ -125,7 +125,7 @@ let x = m.indexed_var("x", &i)
 
 `Set` is an ordered finite index set. Three variants:
 
-```rust
+```rust,ignore
 let i = Set::range(0..5);              // Range: i64 keys 0..5
 let j = Set::strings(["a", "b", "c"]); // Strings
 let k = Set::product(&i, &j);          // Tuples: (0,"a"), (0,"b"), ...
@@ -142,7 +142,7 @@ let evens = i.filter(|k| k.as_i64().unwrap() % 2 == 0);
 
 ### Single constraint
 
-```rust
+```rust,ignore
 let c_id = m.constraint("name", expr.le(rhs)); // <=
 let c_id = m.constraint("name", expr.ge(rhs)); // >=
 let c_id = m.constraint("name", expr.eq(rhs)); // ==
@@ -150,7 +150,7 @@ let c_id = m.constraint("name", expr.eq(rhs)); // ==
 
 ### Bulk, rule over a set
 
-```rust
+```rust,ignore
 m.add_constraints_over("supply", &plants, |p: String| {
     supply[&p].le(capacity[&p])
 });
@@ -163,7 +163,7 @@ m.add_constraints_over("flow", &(&plants * &markets), |(p, m): (String, String)|
 
 ## Objectives
 
-```rust
+```rust,ignore
 m.minimize(cost_expr);
 m.maximize(revenue_expr);
 ```

@@ -1,8 +1,4 @@
-//! Core modeling types for oximo: variables, parameters, sets, constraints,
-//! objectives, and the [`Model`] container that owns the expression arena.
-//!
-//! See [`prelude`] for the canonical re-exports.
-
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 pub mod constraint;

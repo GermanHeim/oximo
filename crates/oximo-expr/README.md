@@ -20,7 +20,7 @@ This crate is the fundamental layer. End users depend on `oximo-core`, which re-
 
 ### `ExprNode` variants
 
-```rust
+```rust,ignore
 Const(f64)
 Var(VarId)
 Param(ParamId)
@@ -38,7 +38,7 @@ Linear { coeffs: Vec<(VarId, f64)>, constant: f64 } // LP fast-path
 
 `Expr` implements `Add`, `Sub`, `Mul`, `Neg` against other `Expr` values and against `f64`. All operations that stay linear produce a `Linear` node. For example:
 
-```rust
+```rust,ignore
 // All of these produce a single Linear node, not an Add/Mul tree:
 let e = 2.0 * x + 3.0 * y - 1.0;
 let e = x + y;
@@ -47,7 +47,7 @@ let e = -x;
 
 ## Nonlinear methods on `Expr`
 
-```rust
+```rust,ignore
 expr.pow(exponent) // Expr ^ Expr
 expr.powi(n: i32)  // integer exponent shorthand
 expr.powf(n: f64)  // float exponent shorthand
@@ -61,7 +61,7 @@ expr.log()
 
 ### `sum`
 
-```rust
+```rust,ignore
 use oximo_expr::sum;
 let total = sum(vars.iter().zip(coeffs.iter()).map(|(x, c)| *c * *x));
 ```
@@ -70,7 +70,7 @@ Accumulates an iterator of `Expr` into a single linear expression.
 
 ### `extract_linear`
 
-```rust
+```rust,ignore
 use oximo_expr::extract_linear;
 let terms: Option<LinearTerms> = extract_linear(&arena, expr_id);
 ```
@@ -79,7 +79,7 @@ Returns `Some(LinearTerms)` if the subtree is affine, `None` if it contains nonl
 
 ### `evaluate`
 
-```rust
+```rust,ignore
 use oximo_expr::{evaluate, EvalContext};
 let mut ctx = EvalContext::new();
 ctx.set_var(var_id, 3.0);
@@ -90,7 +90,7 @@ Numerically evaluates an expression subtree given variable assignments.
 
 ### `simplify`
 
-```rust
+```rust,ignore
 use oximo_expr::simplify;
 let simplified_id = simplify(&mut arena, expr_id);
 ```
@@ -99,7 +99,7 @@ Constant-folds and simplifies the subtree in place.
 
 ### `Visitor` / `walk`
 
-```rust
+```rust,ignore
 use oximo_expr::{Visitor, walk};
 struct MyVisitor;
 impl Visitor for MyVisitor {

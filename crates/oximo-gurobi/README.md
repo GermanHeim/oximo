@@ -48,7 +48,7 @@ oximo-solver = "0.1"
 
 ## Quick example
 
-```rust
+```rust,ignore
 use oximo::prelude::*;
 use oximo::solvers::Gurobi;
 
@@ -106,7 +106,7 @@ cargo run -p oximo --example lot_sizing --features gurobi
 
 Full list of supported parameters is in [src/options.rs](src/options.rs). See the [Gurobi parameter reference](https://docs.gurobi.com/projects/optimizer/en/current/reference/parameters.html) for semantics.
 
-```rust
+```rust,ignore
 use std::time::Duration;
 use oximo_gurobi::GurobiOptions;
 use oximo_solver::{Presolve, UniversalOptionsExt, MipOptionsExt};

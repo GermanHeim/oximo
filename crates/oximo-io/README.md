@@ -2,7 +2,7 @@
 
 Model I/O for [oximo](https://github.com/germanheim/oximo): MPS and LP writers.
 
-Converts an oximo [`Model`] to standard text formats for exchanging models with external solvers and tools. Both formats support `LP` and `MILP` only. Nonlinear expressions raise [`IoError::Nonlinear`].
+Converts an oximo [`oximo_core::Model`] to standard text formats for exchanging models with external solvers and tools. Both formats support `LP` and `MILP` only. Nonlinear expressions raise [`IoError::Nonlinear`].
 
 > Support for NL files for nonlinear programming (NLP) and mixed-integer nonlinear programming (MINLP) is planned.
 
@@ -32,7 +32,7 @@ oximo-core = "0.1"
 
 ## Quick example
 
-```rust
+```rust,ignore
 use oximo::prelude::*;
 use oximo::io::{to_mps_string, to_lp_string};
 
@@ -62,7 +62,7 @@ Fixed-format MPS (fixed-column, 10-char field width). Widely supported by commer
 | Bounds            | `FR` (free), `MI`+`UP` (lower=-inf), `LO`/`UP` as needed. Default lb=0 omitted                                                 |
 | Constant terms    | Objective constant written to `RHS OBJ`, constraint constants folded into `RHS`                                                |
 
-```rust
+```rust,ignore
 use oximo_io::{write_mps, to_mps_string};
 use std::fs::File;
 use std::io::BufWriter;
@@ -86,7 +86,7 @@ Human-readable CPLEX LP format. Sections emitted: header comment, `Minimize`/`Ma
 | Bounds             | Free variables declared with `free`; default lb=0, ub=+inf omitted|
 | Objective constant | Written as a comment if non-zero                                  |
 
-```rust
+```rust,ignore
 use oximo_io::{write_lp, to_lp_string};
 use std::fs::File;
 use std::io::BufWriter;

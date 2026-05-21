@@ -24,10 +24,10 @@ oximo-solver = "0.1"
 
 ## Quick example
 
-```rust
+```rust,no_run
 use oximo_core::prelude::*;
 use oximo_highs::{Highs, HighsOptions};
-use oximo_solver::Solver;
+use oximo_solver::{Solver, SolverStatus};
 
 let m = Model::new("toy");
 let x = m.var("x").lb(0.0).build();

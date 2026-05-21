@@ -1,7 +1,4 @@
-//! Solver-trait abstraction and shared option / result types for oximo.
-//!
-//! Concrete backends live in their own crates and are wired up through
-//! cargo features on the umbrella `oximo` crate.
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 pub mod options;

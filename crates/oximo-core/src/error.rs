@@ -2,7 +2,7 @@ use smol_str::SmolStr;
 use thiserror::Error;
 
 /// Errors that can occur during model construction.
-/// These are distinct from backend errors, which are opaque and translated into [`SolverError`].
+/// These are distinct from backend errors, which are opaque and translated into `SolverError`.
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("variable name {0:?} already registered")]

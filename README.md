@@ -4,7 +4,7 @@ oximo is a Rust algebraic modeling library for mathematical optimization. Build 
 
 > Support for nonlinear programming (NLP) and mixed-integer nonlinear programming (MINLP) is planned.
 
-```rust
+```rust,no_run
 use oximo::prelude::*;
 use oximo::solvers::Highs;
 
@@ -21,6 +21,7 @@ let result = Highs.solve(&m, &HighsOptions::default())?;
 println!("obj = {:?}", result.objective);   // 34.0
 println!("x   = {:?}", result.value_of(x)); // 6.0
 println!("y   = {:?}", result.value_of(y)); // 4.0
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Features
@@ -43,7 +44,7 @@ oximo = { version = "0.1", features = ["gams"] }   # add GAMS backend
 
 ### Variables
 
-```rust
+```rust,ignore
 let m = Model::new("my_model");
 
 let x = m.var("x").lb(0.0).build();               // continuous, x >= 0
@@ -57,7 +58,7 @@ let n = m.var("n").lb(0.0).integer().build();     // general integer
 
 Expressions are built with standard Rust operators. Scalar multiplication, addition, and subtraction all work out of the box:
 
-```rust
+```rust,ignore
 m.constraint("cap", (2.0 * x + 3.0 * y).le(100.0));
 m.constraint("demand", x.ge(5.0));
 m.constraint("balance", (x - y).eq(0.0));
@@ -73,7 +74,7 @@ m.maximize(x + 2.0 * y);
 one over integers, strings, or arbitrary tuples. You can combine sets with the
 Cartesian product operator `&a * &b`, and filter sparsely.
 
-```rust
+```rust,ignore
 use oximo::prelude::*;
 
 let items = Set::range(0..5);
@@ -97,7 +98,7 @@ let arcs = (&plants * &plants).filter(|k| {
 entries like `x[seattle,nyc]`. Bounds apply uniformly by default, you can use
 `lb_by` / `ub_by` for per-key bounds.
 
-```rust
+```rust,ignore
 let m = Model::new("transport");
 let x = m.indexed_var("x", &routes).lb(0.0).build();
 
@@ -120,7 +121,7 @@ value via `FromIndexKey`.
 Built-in impls cover `i64`, `i32`, `usize`, `String`, raw `IndexKey`, and tuples up to
 arity 4. State the shape in the closure-arg annotation.
 
-```rust
+```rust,ignore
 // Scalar set: one constraint per period.
 let periods = Set::range(0..T);
 m.add_constraints_over("setup", &periods, |t: usize| {
@@ -138,7 +139,7 @@ m.add_constraints_over("c", &set, |k: IndexKey| x[&k].le(1.0));
 
 ### Summing over sets
 
-```rust
+```rust,ignore
 // Linear-fastpath aware: `sum` collapses to a single Linear arena node.
 let total_weight = sum(items.iter().map(|k| {
     let i: usize = FromIndexKey::from_index_key(&k);
@@ -151,7 +152,7 @@ m.constraint("cap", total_weight.le(capacity));
 
 All backends implement the `Solver` trait:
 
-```rust
+```rust,ignore
 pub trait Solver {
     fn solve(&mut self, model: &Model, opts: &Self::Options) -> Result<SolverResult, SolverError>;
 }
@@ -161,7 +162,7 @@ pub trait Solver {
 
 No install required, HiGHS is compiled from source via the `highs` crate.
 
-```rust
+```rust,ignore
 use oximo::prelude::*;
 use oximo::solvers::Highs;
 
@@ -176,7 +177,7 @@ let result = Highs.solve(&m, &HighsOptions::default()
 
 Requires a licensed Gurobi install and `GUROBI_HOME` set. See [`crates/oximo-gurobi/README.md`](crates/oximo-gurobi/README.md).
 
-```rust
+```rust,ignore
 use oximo::prelude::*;
 use oximo::solvers::Gurobi;
 
@@ -190,7 +191,7 @@ let result = Gurobi.solve(&m, &GurobiOptions::default()
 
 Requires GAMS on `PATH`. Supports solving models via GAMS solvers (CPLEX, BARON, etc.). See [`crates/oximo-gams/README.md`](crates/oximo-gams/README.md).
 
-```rust
+```rust,ignore
 use oximo::prelude::*;
 use oximo::solvers::Gams;
 
@@ -199,7 +200,7 @@ let result = Gams.solve(&m, &GamsOptions::default())?;
 
 ## Reading results
 
-```rust
+```rust,ignore
 let result = Highs.solve(&m, &HighsOptions::default())?;
 
 match result.status {
@@ -223,7 +224,7 @@ let rc = result.reduced_costs.get(&x.id);
 
 With the `io` feature (default):
 
-```rust
+```rust,ignore
 use oximo::io;
 
 let mps = io::to_mps_string(&m)?;

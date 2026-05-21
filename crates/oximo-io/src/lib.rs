@@ -1,6 +1,4 @@
-//! Model serialization for oximo: MPS and LP writers.
-//!
-//! TODO: NL format for nonlinear models.
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 pub mod error;

@@ -41,7 +41,7 @@ oximo-solver = "0.1"
 
 ## Quick example
 
-```rust
+```rust,ignore
 use oximo::prelude::*;
 use oximo::solvers::Gams;
 

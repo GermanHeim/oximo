@@ -10,7 +10,7 @@ pub enum ObjectiveSense {
 /// The model's objective: an expression to optimize and the direction.
 #[derive(Clone, Debug)]
 pub struct Objective {
-    /// Root node of the objective expression in the model's [`ExprArena`].
+    /// Root node of the objective expression in the model's [`oximo_expr::ExprArena`].
     pub expr: ExprId,
     pub sense: ObjectiveSense,
 }

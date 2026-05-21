@@ -6,7 +6,7 @@ use crate::model::Model;
 
 /// Variable metadata held by the [`Model`]. Users do not construct this
 /// directly, they get an [`Expr`] back from [`VarBuilder::build`] and look up
-/// solution values via [`crate::Model`] / [`oximo_solver::SolverResult`].
+/// solution values via [`crate::Model`] / `oximo_solver::SolverResult`.
 #[derive(Clone, Debug)]
 pub struct Variable {
     pub id: VarId,

@@ -14,7 +14,7 @@ oximo-core   = "0.1"
 
 ## `Solver` trait
 
-```rust
+```rust,ignore
 pub trait Solver {
     type Options;
 
@@ -43,7 +43,7 @@ Populated by the backend on `Optimal` or `Feasible`. Sparse maps (`FxHashMap`) m
 
 ### Accessors
 
-```rust
+```rust,ignore
 result.value_of(expr)        // Option<f64>, primal value for a Var expr
 result.value(var_id)         // Option<f64>, primal value by VarId
 result.dual_of(c_id)         // Option<f64>, dual for a constraint
@@ -82,7 +82,7 @@ result.values_of(&flow).filter(|(_, v)| *v != 0.0) // nonzero only (sparse solut
 
 All backend options structs embed `UniversalOptions` and implement `HasUniversal`, which enables the `UniversalOptionsExt` blanket impl:
 
-```rust
+```rust,ignore
 use oximo_solver::UniversalOptionsExt;
 use std::time::Duration;
 

@@ -1,17 +1,4 @@
-//! HiGHS LP / MILP backend for oximo.
-//!
-//! ```no_run
-//! use oximo_core::prelude::*;
-//! use oximo_highs::{Highs, HighsOptions};
-//! use oximo_solver::Solver;
-//!
-//! let m = Model::new("toy");
-//! let x = m.var("x").lb(0.0).build();
-//! m.minimize(x);
-//! let mut s = Highs::default();
-//! let res = s.solve(&m, &HighsOptions::default()).unwrap();
-//! assert!(res.status.has_solution());
-//! ```
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 mod options;

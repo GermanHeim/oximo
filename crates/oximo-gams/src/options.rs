@@ -22,7 +22,7 @@ pub struct GamsOptions {
 /// Named GAMS sub-solver. Use [`GamsSolver::Custom`] for any name that isn't
 /// a pre-enumerated variant.
 ///
-/// Reference: https://www.gams.com/latest/docs/S_MAIN.html#SOLVERS_MODEL_TYPES
+/// Reference: <https://www.gams.com/latest/docs/S_MAIN.html#SOLVERS_MODEL_TYPES>
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GamsSolver {
     /// ALPHAECP: MINLP

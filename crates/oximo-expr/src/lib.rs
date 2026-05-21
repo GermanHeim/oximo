@@ -1,11 +1,4 @@
-//! Arena-allocated expression tree for oximo.
-//!
-//! Expressions are stored as nodes in an [`ExprArena`]. User code holds
-//! lightweight [`Expr`] handles that combine an [`ExprId`] with a borrow of
-//! the owning arena. The arena keeps construction cache-friendly, makes deep
-//! cloning of subtrees free (just copy IDs), and provides a stable substrate
-//! for evaluation and simplification.
-
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
 mod arena;
