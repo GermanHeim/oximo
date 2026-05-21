@@ -150,6 +150,30 @@ fn mip_gap_accepted_and_solves() {
     assert!(result.objective.unwrap() > 0.0);
 }
 
+#[test]
+fn indexed_var_retrieval() {
+    let m = Model::new("indexed");
+    let routes = Set::strings(["a", "b"]);
+    let flow = m.indexed_var("flow", &routes).lb(0.0).build();
+
+    m.constraint("ca", flow["a"].ge(3.0));
+    m.constraint("cb", flow["b"].ge(7.0));
+    m.minimize(flow["a"] + flow["b"]);
+
+    let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+
+    assert!((result.value_of_idx(&flow, "a").unwrap() - 3.0).abs() < 1e-6);
+    assert!((result.value_of_idx(&flow, "b").unwrap() - 7.0).abs() < 1e-6);
+
+    let mut vals: Vec<_> = result.values_of(&flow).collect();
+    vals.sort_by(|(a, _), (b, _)| format!("{a:?}").cmp(&format!("{b:?}")));
+    assert_eq!(vals.len(), 2);
+
+    let nonzero: Vec<_> = result.values_of(&flow).filter(|(_, v)| *v != 0.0).collect();
+    assert_eq!(nonzero.len(), 2);
+}
+
 #[cfg(feature = "io")]
 #[test]
 fn mps_coefficients_and_rhs() {
