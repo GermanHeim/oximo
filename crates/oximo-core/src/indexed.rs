@@ -32,7 +32,7 @@ impl<'a> IndexedVar<'a> {
     }
 }
 
-impl<'a, K: Into<IndexKey> + Clone> Index<K> for IndexedVar<'a> {
+impl<'a, K: Into<IndexKey>> Index<K> for IndexedVar<'a> {
     type Output = Expr<'a>;
     fn index(&self, key: K) -> &Self::Output {
         self.entries.get(&key.into()).expect("IndexedVar: key not present")

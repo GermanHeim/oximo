@@ -2,6 +2,7 @@ use std::ops::Mul;
 
 use num_traits::PrimInt;
 use rayon::prelude::*;
+use smol_str::SmolStr;
 
 // Note: I used `Box<[IndexKey]>` over:
 //   - `Vec<IndexKey>`: saves one word
@@ -20,7 +21,7 @@ pub type IndexTuple = Box<[IndexKey]>;
 #[derive(Clone, Debug)]
 pub enum Set {
     Range(Vec<i64>),
-    Strings(Vec<String>),
+    Strings(Vec<SmolStr>),
     Tuples(Vec<IndexTuple>),
 }
 
@@ -57,7 +58,7 @@ impl Set {
     pub fn strings<I, S>(iter: I) -> Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: Into<SmolStr>,
     {
         Self::Strings(iter.into_iter().map(Into::into).collect())
     }
@@ -104,10 +105,7 @@ impl Set {
                 v.iter()
                     .filter_map(|s| {
                         let key = IndexKey::Str(s.clone());
-                        f(&key).then(|| match key {
-                            IndexKey::Str(owned) => owned,
-                            _ => unreachable!(),
-                        })
+                        f(&key).then(|| s.clone())
                     })
                     .collect(),
             ),
@@ -164,7 +162,7 @@ impl Mul<&Set> for &Set {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum IndexKey {
     Int(i64),
-    Str(String),
+    Str(SmolStr),
     Tuple(IndexTuple),
 }
 
@@ -212,13 +210,19 @@ impl From<usize> for IndexKey {
 
 impl From<&str> for IndexKey {
     fn from(s: &str) -> Self {
-        Self::Str(s.to_owned())
+        Self::Str(SmolStr::new(s))
     }
 }
 
 impl From<String> for IndexKey {
     fn from(s: String) -> Self {
-        Self::Str(s)
+        Self::Str(SmolStr::from(s))
+    }
+}
+
+impl From<&String> for IndexKey {
+    fn from(s: &String) -> Self {
+        Self::Str(SmolStr::new(s.as_str()))
     }
 }
 
