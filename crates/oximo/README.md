@@ -1,4 +1,15 @@
-# oximo
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/GermanHeim/oximo/main/media/logo-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/GermanHeim/oximo/main/media/logo-dark.svg">
+  <img alt="oximo logo" src="https://raw.githubusercontent.com/GermanHeim/oximo/main/media/logo-dark.svg">
+</picture>
+
+<a href="https://crates.io/crates/oximo">
+    <img src="https://img.shields.io/crates/v/oximo?logo=rust&color=E05D44" alt="crates version" />
+</a>
+<a href="https://github.com/GermanHeim/oximo/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/GermanHeim/oximo/ci.yml?branch=main&label=oximo%20CI&logo=github" alt="CI" />
+</a>
 
 oximo is a Rust algebraic modeling library for mathematical optimization. Build LP and MILP models with a clean builder API, then solve them with bundled or commercial solvers.
 
