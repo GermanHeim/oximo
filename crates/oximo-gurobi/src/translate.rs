@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use grb::expr::LinExpr;
 use grb::prelude::*;
-use oximo_core::{ConstraintId, Model, ModelKind, ObjectiveSense, Sense, VarId};
+use oximo_core::{ConstraintId, Domain, Model, ModelKind, ObjectiveSense, Sense, VarId};
 use oximo_expr::extract_linear;
 use oximo_solver::{SolverError, SolverResult, SolverStatus};
 use rustc_hash::FxHashMap;
@@ -53,7 +53,13 @@ pub fn solve(model: &Model, opts: &GurobiOptions) -> Result<SolverResult, Solver
 
     let mut gurobi_vars = Vec::with_capacity(vars.len());
     for (i, v) in vars.iter().enumerate() {
-        let vtype = if v.domain.is_integer() { VarType::Integer } else { VarType::Continuous };
+        let vtype = match v.domain {
+            Domain::Real => VarType::Continuous,
+            Domain::Integer => VarType::Integer,
+            Domain::Binary => VarType::Binary,
+            Domain::SemiContinuous { .. } => VarType::SemiCont,
+            Domain::SemiInteger { .. } => VarType::SemiInt,
+        };
         let gvar = add_var!(grb_model, vtype, obj: obj_coeffs[i], bounds: v.lb..v.ub, name: &format!("x{i}"))
             .map_err(map_grb_err)?;
         gurobi_vars.push(gvar);
@@ -104,27 +110,8 @@ pub fn solve(model: &Model, opts: &GurobiOptions) -> Result<SolverResult, Solver
     let elapsed = started.elapsed();
 
     let status = map_status(&grb_model)?;
-    let mut primal = FxHashMap::default();
-    let mut reduced_costs = FxHashMap::default();
-    let mut dual = FxHashMap::default();
-
-    if status.has_solution() {
-        for (i, gvar) in gurobi_vars.iter().enumerate() {
-            if let Ok(val) = grb_model.get_obj_attr(attr::X, gvar) {
-                primal.insert(VarId(u32::try_from(i).unwrap()), val);
-            }
-            // Reduced costs
-            if let Ok(val) = grb_model.get_obj_attr(attr::RC, gvar) {
-                reduced_costs.insert(VarId(u32::try_from(i).unwrap()), val);
-            }
-        }
-
-        for (i, c) in gurobi_constrs.iter().enumerate() {
-            if let Ok(val) = grb_model.get_obj_attr(attr::Pi, c) {
-                dual.insert(ConstraintId(u32::try_from(i).unwrap()), val);
-            }
-        }
-    }
+    let (primal, reduced_costs, dual) =
+        collect_solution(&status, &grb_model, &gurobi_vars, &gurobi_constrs);
 
     let objective_value = grb_model.get_attr(attr::ObjVal).ok().map(|v| v + obj_constant);
     let iterations = grb_model.get_attr(attr::IterCount).unwrap_or(0.0) as u64;
@@ -139,6 +126,36 @@ pub fn solve(model: &Model, opts: &GurobiOptions) -> Result<SolverResult, Solver
         iterations,
         raw_log: None,
     })
+}
+
+fn collect_solution(
+    status: &SolverStatus,
+    model: &grb::Model,
+    vars: &[grb::Var],
+    constrs: &[grb::Constr],
+) -> (FxHashMap<VarId, f64>, FxHashMap<VarId, f64>, FxHashMap<ConstraintId, f64>) {
+    let mut primal = FxHashMap::default();
+    let mut reduced_costs = FxHashMap::default();
+    let mut dual = FxHashMap::default();
+
+    if status.has_solution() {
+        for (i, gvar) in vars.iter().enumerate() {
+            if let Ok(val) = model.get_obj_attr(attr::X, gvar) {
+                primal.insert(VarId(u32::try_from(i).unwrap()), val);
+            }
+            // Reduced costs
+            if let Ok(val) = model.get_obj_attr(attr::RC, gvar) {
+                reduced_costs.insert(VarId(u32::try_from(i).unwrap()), val);
+            }
+        }
+        for (i, c) in constrs.iter().enumerate() {
+            if let Ok(val) = model.get_obj_attr(attr::Pi, c) {
+                dual.insert(ConstraintId(u32::try_from(i).unwrap()), val);
+            }
+        }
+    }
+
+    (primal, reduced_costs, dual)
 }
 
 fn map_status(model: &grb::Model) -> Result<SolverStatus, SolverError> {
