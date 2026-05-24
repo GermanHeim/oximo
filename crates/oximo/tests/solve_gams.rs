@@ -37,6 +37,47 @@ fn gams_lp_canonical() {
 }
 
 #[test]
+fn gams_lp_duals_and_reduced_costs() {
+    // max x  s.t.  x <= 5,  x >= 0
+    // Optimal: x = 5, dual of (x <= 5) = +/-1.0, reduced cost of x = 0.
+    let m = Model::new("lp_dual");
+    let x = m.var("x").lb(0.0).build();
+    let c = m.constraint("cap", x.le(5.0));
+    m.maximize(x);
+
+    let opts = GamsOptions::default().time_limit(Duration::from_secs(30));
+    let result = Gams::new().solve(&m, &opts).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective.unwrap() - 5.0).abs() < 1e-6);
+
+    let d = result.dual_of(c).expect("dual missing for cap constraint");
+    assert!((d.abs() - 1.0).abs() < 1e-6, "dual={d}");
+
+    // Only one variable in the model -> VarId(0).
+    let rc = result
+        .reduced_costs
+        .get(&VarId(0))
+        .copied()
+        .expect("reduced cost missing for x");
+    assert!(rc.abs() < 1e-6, "reduced_cost(x)={rc}");
+    let _ = x;
+}
+
+#[test]
+fn gams_mip_has_no_duals() {
+    let m = Model::new("mip_no_duals");
+    let x = m.var("x").binary().build();
+    let _c = m.constraint("c", x.le(1.0));
+    m.maximize(x);
+
+    let opts = GamsOptions::default().time_limit(Duration::from_secs(30));
+    let result = Gams::new().solve(&m, &opts).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!(result.dual.is_empty(), "MIP must not return duals");
+    assert!(result.reduced_costs.is_empty(), "MIP must not return reduced costs");
+}
+
+#[test]
 fn gams_knapsack_milp() {
     let weights = [3.0, 4.0, 2.0, 5.0, 1.0, 6.0, 7.0, 2.0];
     let values = [10.0, 12.0, 5.0, 14.0, 3.0, 18.0, 22.0, 6.0];
