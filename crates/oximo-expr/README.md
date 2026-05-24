@@ -59,14 +59,24 @@ expr.log()
 
 ## Utilities
 
-### `sum`
+### Summing expressions
+
+`Expr` implements `std::iter::Sum`, so any iterator of `Expr` (or `&Expr`) can
+be collapsed with the standard `.sum()`. The arena is taken from the first
+element, empty iterators panic.
 
 ```rust,ignore
-use oximo_expr::sum;
-let total = sum(vars.iter().zip(coeffs.iter()).map(|(x, c)| *c * *x));
+let total: Expr = vars.iter().copied().sum();
 ```
 
-Accumulates an iterator of `Expr` into a single linear expression.
+For coefficient-weighted sums (`sum_{i} c_i * e_i`) use the `dot` helper:
+
+```rust,ignore
+use oximo_expr::dot;
+let total = dot(&vars, &coeffs);
+```
+
+For sums indexed by an `oximo-core` `Set`, prefer `oximo_core::sum_over`.
 
 ### `extract_linear`
 
