@@ -10,6 +10,7 @@ pub mod objective;
 pub mod param;
 pub mod prelude;
 pub mod set;
+pub mod sum;
 pub mod var;
 
 pub use constraint::{Constraint, ConstraintExpr, ConstraintId, IntoRhs, Relate, Sense};
@@ -20,8 +21,9 @@ pub use model::{IndexedVarBuilder, Model, ModelKind, display_index_key};
 pub use objective::{Objective, ObjectiveSense};
 pub use param::Parameter;
 pub use set::{FromIndexKey, IndexKey, IndexTuple, Set, SetIter};
+pub use sum::{SumDomain, sum_over};
 pub use var::{VarBuilder, Variable};
 
 // Re-export the expression handle so downstream code does not need a separate
 // `oximo-expr` import.
-pub use oximo_expr::{Expr, ExprArena, ExprId, ExprNode, ParamId, VarId};
+pub use oximo_expr::{Expr, ExprArena, ExprId, ExprNode, ParamId, VarId, dot};

@@ -118,16 +118,31 @@ impl_scalar_ops!(f64);
 impl_scalar_ops!(i32);
 
 // -----------------------------------------------------------------------------
-// Sum support for `iter.sum::<Expr>()` would be nice but requires a starting
-// value tied to the arena. Provide a free function instead.
+// std::iter::Sum: the first element of the iterator carries the arena handle,
+// so no external zero is required.
 // -----------------------------------------------------------------------------
 
-/// Sum a non-empty iterator of expressions sharing the same arena.
+impl<'a> std::iter::Sum for Expr<'a> {
+    fn sum<I: Iterator<Item = Self>>(mut iter: I) -> Self {
+        let first = iter.next().expect("Expr::sum on empty iterator");
+        iter.fold(first, |acc, e| acc + e)
+    }
+}
+
+impl<'a, 'b> std::iter::Sum<&'b Expr<'a>> for Expr<'a> {
+    fn sum<I: Iterator<Item = &'b Expr<'a>>>(iter: I) -> Self {
+        iter.copied().sum()
+    }
+}
+
+/// Dot product of expressions with scalar coefficients: `sum_{i} c_i * e_i`.
 ///
 /// # Panics
-/// Panics if the iterator is empty.
-pub fn sum<'a, I: IntoIterator<Item = Expr<'a>>>(iter: I) -> Expr<'a> {
-    let mut it = iter.into_iter();
-    let first = it.next().expect("oximo_expr::sum on empty iterator");
-    it.fold(first, |acc, e| acc + e)
+/// Panics if `exprs` is empty (the result needs an arena handle).
+pub fn dot<'a, I, J>(exprs: I, coeffs: J) -> Expr<'a>
+where
+    I: IntoIterator<Item = Expr<'a>>,
+    J: IntoIterator<Item = f64>,
+{
+    exprs.into_iter().zip(coeffs).map(|(e, c)| c * e).sum()
 }
