@@ -13,6 +13,6 @@ pub use arena::{ExprArena, ExprId, ExprNode, ParamId, VarId};
 pub use eval::{EvalContext, EvalError, evaluate};
 pub use handle::Expr;
 pub use linear::{LinearTerms, extract_linear};
-pub use ops::sum;
+pub use ops::dot;
 pub use simplify::simplify;
 pub use visit::{Visitor, walk};
