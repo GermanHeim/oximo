@@ -40,7 +40,7 @@ impl<K: Copy, const N: usize> SumDomain<K> for [K; N] {
 /// Sum an expression over every element of a domain.
 ///
 /// Reads as the mathematical `sum_{k in domain} f(k)`. The closure parameter is
-/// either decoded from the domain's [`IndexKey`] via [`FromIndexKey`] (when
+/// either decoded from the domain's [`crate::set::IndexKey`] via [`FromIndexKey`] (when
 /// the domain is a [`Set`]) or yielded directly (when the domain is a slice
 /// of `Copy` keys).
 ///
