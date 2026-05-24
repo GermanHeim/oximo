@@ -3,37 +3,37 @@ use oximo_expr::Expr;
 use crate::set::{FromIndexKey, Set};
 
 /// Domain over which [`sum_over`] iterates. Lets a single `sum_over` call
-/// accept either an [`Set`] (with typed key decoding via [`FromIndexKey`])
+/// accept either a [`Set`] (with typed key decoding via [`FromIndexKey`])
 /// or a borrowed slice of `Copy` keys, without intermediate conversions.
+///
+/// Returns an iterator (rather than taking a callback) so the trait method
+/// monomorphizes through to the loop body in [`sum_over`], allowing inlining
+/// in hot sums. Implementations are typically one line.
 pub trait SumDomain<K> {
-    fn for_each_key(&self, f: &mut dyn FnMut(K));
+    fn keys(&self) -> impl Iterator<Item = K> + '_;
 }
 
 impl<K: FromIndexKey> SumDomain<K> for Set {
-    fn for_each_key(&self, f: &mut dyn FnMut(K)) {
-        for k in self {
-            f(K::from_index_key(&k));
-        }
+    fn keys(&self) -> impl Iterator<Item = K> + '_ {
+        self.iter().map(|k| K::from_index_key(&k))
     }
 }
 
 impl<K: Copy> SumDomain<K> for [K] {
-    fn for_each_key(&self, f: &mut dyn FnMut(K)) {
-        for &k in self {
-            f(k);
-        }
+    fn keys(&self) -> impl Iterator<Item = K> + '_ {
+        self.iter().copied()
     }
 }
 
 impl<K: Copy> SumDomain<K> for Vec<K> {
-    fn for_each_key(&self, f: &mut dyn FnMut(K)) {
-        self.as_slice().for_each_key(f);
+    fn keys(&self) -> impl Iterator<Item = K> + '_ {
+        self.iter().copied()
     }
 }
 
 impl<K: Copy, const N: usize> SumDomain<K> for [K; N] {
-    fn for_each_key(&self, f: &mut dyn FnMut(K)) {
-        self.as_slice().for_each_key(f);
+    fn keys(&self) -> impl Iterator<Item = K> + '_ {
+        self.iter().copied()
     }
 }
 
@@ -52,15 +52,9 @@ where
     D: SumDomain<K> + ?Sized,
     F: FnMut(K) -> Expr<'a>,
 {
-    let mut acc: Option<Expr<'a>> = None;
-    domain.for_each_key(&mut |k| {
-        let e = f(k);
-        acc = Some(match acc {
-            Some(a) => a + e,
-            None => e,
-        });
-    });
-    acc.expect("sum_over on empty domain")
+    let mut iter = domain.keys();
+    let first = f(iter.next().expect("sum_over on empty domain"));
+    iter.fold(first, |acc, k| acc + f(k))
 }
 
 #[cfg(test)]
