@@ -57,9 +57,8 @@ let weights = [3.0, 4.0, 2.0, 5.0];
 let values  = [10.0, 12.0, 5.0, 14.0];
 
 let xs: Vec<_> = (0..4).map(|i| m.var(format!("x{i}")).binary().build()).collect();
-let weight_sum = sum(xs.iter().zip(weights.iter()).map(|(x, w)| *w * *x));
-m.constraint("cap", weight_sum.le(7.0));
-m.maximize(sum(xs.iter().zip(values.iter()).map(|(x, v)| *v * *x)));
+m.constraint("cap", dot(&xs, &weights).le(7.0));
+m.maximize(dot(&xs, &values));
 
 let result = Gurobi.solve(&m, &GurobiOptions::default())?;
 println!("status = {:?}", result.status);
