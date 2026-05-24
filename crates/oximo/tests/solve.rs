@@ -25,8 +25,8 @@ fn knapsack_milp() {
 
     let m = Model::new("knapsack");
     let xs: Vec<_> = (0..weights.len()).map(|i| m.var(format!("x{i}")).binary().build()).collect();
-    m.constraint("cap", dot(xs.iter().copied(), weights.iter().copied()).le(15.0));
-    m.maximize(dot(xs.iter().copied(), values.iter().copied()));
+    m.constraint("cap", dot(&xs, &weights).le(15.0));
+    m.maximize(dot(&xs, &values));
 
     let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
@@ -62,8 +62,8 @@ fn milp_warm_start_finds_optimum() {
     let xs: Vec<_> = (0..weights.len())
         .map(|i| m.var(format!("x{i}")).binary().initial(warm_start[i]).build())
         .collect();
-    m.constraint("cap", dot(xs.iter().copied(), weights.iter().copied()).le(15.0));
-    m.maximize(dot(xs.iter().copied(), values.iter().copied()));
+    m.constraint("cap", dot(&xs, &weights).le(15.0));
+    m.maximize(dot(&xs, &values));
 
     let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
@@ -135,8 +135,8 @@ fn mip_gap_accepted_and_solves() {
     let values = [10.0, 12.0, 5.0, 14.0, 3.0];
     let m = oximo_core::Model::new("ks");
     let xs: Vec<_> = (0..5).map(|i| m.var(format!("x{i}")).binary().build()).collect();
-    m.constraint("cap", dot(xs.iter().copied(), weights.iter().copied()).le(8.0));
-    m.maximize(dot(xs.iter().copied(), values.iter().copied()));
+    m.constraint("cap", dot(&xs, &weights).le(8.0));
+    m.maximize(dot(&xs, &values));
     let opts = HighsOptions::default().mip_gap(0.5).verbose(false);
     let result = Highs.solve(&m, &opts).unwrap();
     assert!(
