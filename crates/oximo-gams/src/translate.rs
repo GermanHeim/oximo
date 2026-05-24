@@ -6,7 +6,7 @@ use std::{fs, io};
 
 static SOLVE_ID: AtomicU64 = AtomicU64::new(0);
 
-use oximo_core::{Domain, Model, ModelKind, ObjectiveSense, Sense, VarId};
+use oximo_core::{ConstraintId, Domain, Model, ModelKind, ObjectiveSense, Sense, VarId};
 use oximo_expr::{LinearTerms, extract_linear};
 use oximo_solver::{SolverError, SolverResult, SolverStatus};
 use rustc_hash::FxHashMap;
@@ -216,6 +216,17 @@ pub fn solve(
     for i in 0..vars.len() {
         writeln!(gms, "Put '{i}=' v{i}.l:0:15 /;").unwrap();
     }
+    // Marginals are well-defined only for LP. For MIP, GAMS returns NA/0 for
+    // `.m`, so we skip them and leave the dual/reduced-cost maps empty.
+    let emit_marginals = solve_type == "LP";
+    if emit_marginals {
+        for i in 0..vars.len() {
+            writeln!(gms, "Put 'R{i}=' v{i}.m:0:15 /;").unwrap();
+        }
+        for i in 0..constraints.len() {
+            writeln!(gms, "Put 'D{i}=' eq_c{i}.m:0:15 /;").unwrap();
+        }
+    }
     writeln!(gms, "Putclose oximo_sol;").unwrap();
 
     drop(arena);
@@ -319,6 +330,8 @@ fn parseoximo_solution(
     let mut solvestat: Option<i32> = None;
     let mut obj_val: Option<f64> = None;
     let mut primal: FxHashMap<VarId, f64> = FxHashMap::default();
+    let mut dual: FxHashMap<ConstraintId, f64> = FxHashMap::default();
+    let mut reduced_costs: FxHashMap<VarId, f64> = FxHashMap::default();
 
     for line in content.lines() {
         let line = line.trim();
@@ -328,6 +341,22 @@ fn parseoximo_solution(
             solvestat = parse_gams_int(rest);
         } else if let Some(rest) = line.strip_prefix("OBJVAL=") {
             obj_val = parse_gams_float(rest);
+        } else if let Some(rest) = line.strip_prefix('R') {
+            if let Some(eq) = rest.find('=') {
+                if let Ok(idx) = rest[..eq].parse::<u32>() {
+                    if let Some(val) = parse_gams_float(rest[eq + 1..].trim()) {
+                        reduced_costs.insert(VarId(idx), val);
+                    }
+                }
+            }
+        } else if let Some(rest) = line.strip_prefix('D') {
+            if let Some(eq) = rest.find('=') {
+                if let Ok(idx) = rest[..eq].parse::<u32>() {
+                    if let Some(val) = parse_gams_float(rest[eq + 1..].trim()) {
+                        dual.insert(ConstraintId(idx), val);
+                    }
+                }
+            }
         } else if let Some(eq) = line.find('=') {
             let key = line[..eq].trim();
             if let Ok(idx) = key.parse::<u32>() {
@@ -339,12 +368,13 @@ fn parseoximo_solution(
     }
 
     let status = map_status(modelstat.unwrap_or(13), solvestat.unwrap_or(0));
+    let has_sol = status.has_solution();
 
     SolverResult {
-        objective: if status.has_solution() { obj_val } else { None },
-        primal: if status.has_solution() { primal } else { FxHashMap::default() },
-        dual: FxHashMap::default(),
-        reduced_costs: FxHashMap::default(),
+        objective: if has_sol { obj_val } else { None },
+        primal: if has_sol { primal } else { FxHashMap::default() },
+        dual: if has_sol { dual } else { FxHashMap::default() },
+        reduced_costs: if has_sol { reduced_costs } else { FxHashMap::default() },
         status,
         solve_time: elapsed,
         iterations: 0,
