@@ -265,6 +265,24 @@ fn tuple_product_associativity_shape() {
 }
 
 #[test]
+fn large_product_preserves_lex_order() {
+    // Crosses the rayon threshold in Set::product (4096) so the parallel
+    // path runs. Order must still be lex (outer = a, inner = b).
+    let a = Set::range(0..100_i64);
+    let b = Set::range(0..100_i64);
+    let ab = &a * &b;
+    assert_eq!(ab.len(), 10_000);
+    let keys: Vec<_> = ab.iter().collect();
+    for i in 0..100 {
+        for j in 0..100 {
+            let parts = keys[i * 100 + j].as_tuple().unwrap();
+            assert_eq!(parts[0].as_i64(), Some(i as i64));
+            assert_eq!(parts[1].as_i64(), Some(j as i64));
+        }
+    }
+}
+
+#[test]
 fn duplicates_are_preserved() {
     // Set is an ordered list, not a mathematical set. Duplicates survive.
     let s = Set::from_ints(vec![1_i32, 1, 2]);
