@@ -7,8 +7,9 @@ use std::{fs, io};
 static SOLVE_ID: AtomicU64 = AtomicU64::new(0);
 
 use oximo_core::{ConstraintId, Domain, Model, ModelKind, ObjectiveSense, Sense, VarId};
-use oximo_expr::{LinearTerms, extract_linear};
+use oximo_expr::{ExprArena, LinearTerms, extract_linear};
 use oximo_solver::{SolverError, SolverResult, SolverStatus};
+use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 use crate::GamsOptions;
@@ -46,10 +47,11 @@ pub fn solve(
 
     let obj_terms = extract_linear(&arena, objective.expr).ok_or(SolverError::Nonlinear)?;
 
-    let mut con_terms = Vec::with_capacity(constraints.len());
-    for c in constraints.iter() {
-        con_terms.push(extract_linear(&arena, c.lhs).ok_or(SolverError::Nonlinear)?);
-    }
+    let arena_ref: &ExprArena = &arena;
+    let con_terms: Vec<LinearTerms> = constraints
+        .par_iter()
+        .map(|c| extract_linear(arena_ref, c.lhs).ok_or(SolverError::Nonlinear))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let solve_type = if matches!(kind, ModelKind::MILP) { "MIP" } else { "LP" };
     let sense_kw = match objective.sense {

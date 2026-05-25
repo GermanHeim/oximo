@@ -13,6 +13,7 @@ readme = "README.md"
 oximo-expr.workspace = true
 oximo-core.workspace = true
 oximo-solver.workspace = true
+rayon.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true
 
