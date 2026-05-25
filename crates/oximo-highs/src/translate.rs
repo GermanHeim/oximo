@@ -5,7 +5,7 @@ use oximo_core::{ConstraintId, Model, ModelKind, ObjectiveSense, Sense, VarId};
 use oximo_expr::{ExprArena, LinearTerms, extract_linear};
 use oximo_solver::{SolverError, SolverResult, SolverStatus};
 use rayon::prelude::*;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use crate::HighsOptions;
 use crate::options::apply as apply_options;
@@ -106,22 +106,13 @@ pub fn solve(model: &Model, opts: &HighsOptions) -> Result<SolverResult, SolverE
 
     let status = map_status(solved.status());
     let solution = solved.get_solution();
-
-    let mut primal: FxHashMap<VarId, f64> = FxHashMap::default();
-    let mut reduced_costs: FxHashMap<VarId, f64> = FxHashMap::default();
-    let mut dual: FxHashMap<ConstraintId, f64> = FxHashMap::default();
-
-    if status.has_solution() {
-        for (i, val) in solution.columns().iter().enumerate() {
-            primal.insert(VarId(u32::try_from(i).unwrap()), *val);
-        }
-        for (i, val) in solution.dual_columns().iter().enumerate() {
-            reduced_costs.insert(VarId(u32::try_from(i).unwrap()), *val);
-        }
-        for (i, val) in solution.dual_rows().iter().take(num_constraints).enumerate() {
-            dual.insert(ConstraintId(u32::try_from(i).unwrap()), *val);
-        }
-    }
+    let (primal, reduced_costs, dual) = collect_solution(
+        &status,
+        solution.columns(),
+        solution.dual_columns(),
+        solution.dual_rows(),
+        num_constraints,
+    );
 
     let objective_value =
         if status.has_solution() { Some(solved.objective_value() + obj_constant) } else { None };
@@ -138,8 +129,55 @@ pub fn solve(model: &Model, opts: &HighsOptions) -> Result<SolverResult, SolverE
     })
 }
 
+fn collect_solution(
+    status: &SolverStatus,
+    cols: &[f64],
+    dcols: &[f64],
+    drows_full: &[f64],
+    num_constraints: usize,
+) -> (FxHashMap<VarId, f64>, FxHashMap<VarId, f64>, FxHashMap<ConstraintId, f64>) {
+    if !status.has_solution() {
+        return (FxHashMap::default(), FxHashMap::default(), FxHashMap::default());
+    }
+    let drows = &drows_full[..num_constraints.min(drows_full.len())];
+
+    // Below this, rayon's HashMap collect overhead exceeds the gain.
+    // TODO: benchmark and tune this threshold.
+    const PAR_THRESHOLD: usize = 8192;
+    if cols.len() + dcols.len() + drows.len() < PAR_THRESHOLD {
+        let mut primal: FxHashMap<VarId, f64> =
+            FxHashMap::with_capacity_and_hasher(cols.len(), FxBuildHasher);
+        let mut reduced_costs: FxHashMap<VarId, f64> =
+            FxHashMap::with_capacity_and_hasher(dcols.len(), FxBuildHasher);
+        let mut dual: FxHashMap<ConstraintId, f64> =
+            FxHashMap::with_capacity_and_hasher(drows.len(), FxBuildHasher);
+        for (i, val) in cols.iter().enumerate() {
+            primal.insert(VarId(u32::try_from(i).unwrap()), *val);
+        }
+        for (i, val) in dcols.iter().enumerate() {
+            reduced_costs.insert(VarId(u32::try_from(i).unwrap()), *val);
+        }
+        for (i, val) in drows.iter().enumerate() {
+            dual.insert(ConstraintId(u32::try_from(i).unwrap()), *val);
+        }
+        return (primal, reduced_costs, dual);
+    }
+
+    let primal: FxHashMap<VarId, f64> =
+        cols.par_iter().enumerate().map(|(i, v)| (VarId(u32::try_from(i).unwrap()), *v)).collect();
+    let reduced_costs: FxHashMap<VarId, f64> =
+        dcols.par_iter().enumerate().map(|(i, v)| (VarId(u32::try_from(i).unwrap()), *v)).collect();
+    let dual: FxHashMap<ConstraintId, f64> = drows
+        .par_iter()
+        .enumerate()
+        .map(|(i, v)| (ConstraintId(u32::try_from(i).unwrap()), *v))
+        .collect();
+    (primal, reduced_costs, dual)
+}
+
 fn map_status(s: HighsModelStatus) -> SolverStatus {
     match s {
+        // TODO: Improve this mapping
         HighsModelStatus::Optimal => SolverStatus::Optimal,
         HighsModelStatus::Infeasible => SolverStatus::Infeasible,
         HighsModelStatus::UnboundedOrInfeasible | HighsModelStatus::Unbounded => {
