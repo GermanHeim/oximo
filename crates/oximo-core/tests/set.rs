@@ -265,6 +265,7 @@ fn tuple_product_associativity_shape() {
 }
 
 #[test]
+#[allow(clippy::cast_possible_wrap)]
 fn large_product_preserves_lex_order() {
     // Crosses the rayon threshold in Set::product (4096) so the parallel
     // path runs. Order must still be lex (outer = a, inner = b).
