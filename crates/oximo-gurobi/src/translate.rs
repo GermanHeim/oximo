@@ -140,7 +140,10 @@ fn collect_solution(
     vars: &[grb::Var],
     constrs: &[grb::Constr],
 ) -> (FxHashMap<VarId, f64>, FxHashMap<VarId, f64>, FxHashMap<ConstraintId, f64>) {
-    if !status.has_solution() {
+    // `has_solution` only flags Optimal/Feasible, but Gurobi often holds an
+    // incumbent on TimeLimit/IterationLimit/NodeLimit too.
+    let sol_count = model.get_attr(attr::SolCount).unwrap_or(0);
+    if sol_count <= 0 && !status.has_solution() {
         return (FxHashMap::default(), FxHashMap::default(), FxHashMap::default());
     }
 
