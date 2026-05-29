@@ -297,8 +297,9 @@ fn map_status(modelstat: i32, solvestat: i32) -> SolverStatus {
 
 /// Write the formulation portion of the `.gms` file: title, variables, bounds,
 /// equations, options, model, and solve statement. Returns the solve type
-/// (`"LP"` / `"MIP"` / `"NLP"` / `"MINLP"`) and any solver-options file pair
-/// `(filename, content)` the caller should also persist alongside the `.gms`.
+/// (`"LP"` / `"MIP"` / `"NLP"` / `"MINLP"` / `"QCP"` / `"MIQCP"`) and any
+/// solver-options file pair `(filename, content)` the caller should also
+/// persist alongside the `.gms`.
 #[allow(clippy::too_many_arguments)]
 fn build_model_section(
     gms: &mut String,
