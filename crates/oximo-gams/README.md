@@ -2,7 +2,7 @@
 
 GAMS backend for [oximo](https://github.com/germanheim/oximo).
 
-Writes an oximo `Model` to a temporary `.gms` file, invokes the GAMS executable via `std::process::Command`, and parses the solution from a PUT-generated text file. Supports `LP`, `MILP`, `QP`, `MIQP`, `NLP`, and `MINLP` model kinds. Nonlinear nodes (`Pow`, `Sin`, `Cos`, `Exp`, `Log`, bilinear `Mul`) are emitted as GAMS infix. The `Solve` statement picks `LP` / `MIP` / `NLP` / `MINLP` automatically based on `Model::kind()`.
+Writes an oximo `Model` to a temporary `.gms` file, invokes the GAMS executable via `std::process::Command`, and parses the solution from a PUT-generated text file. Supports `LP`, `MILP`, `QP`, `MIQP`, `NLP`, and `MINLP` model kinds.
 
 The sub-solver is determined by the GAMS installation (default) or set explicitly via `GamsOptions::solver`. Any solver available in your GAMS distribution can be targeted, see [Sub-solver selection](#sub-solver-selection) below.
 
@@ -100,7 +100,8 @@ let opts = GamsOptions::default()
 ## Sub-solver selection
 
 Pass a `GamsSolverConfig` to `.solver(...)` to select a GAMS sub-solver. This emits
-`option {LP|MIP} = <NAME>;` in the generated `.gms` file.
+`option {LP|MIP|NLP|MINLP|QCP|MIQCP} = <NAME>;` in the generated `.gms` file, scoped to
+the solve type resolved from `Model::kind()` (`QP` -> `QCP`, `MIQP` -> `MIQCP`).
 
 ```rust
 use oximo_gams::{GamsOptions, GamsSolver, GamsSolverConfig};
