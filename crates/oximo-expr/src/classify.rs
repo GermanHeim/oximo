@@ -88,7 +88,15 @@ fn degree(arena: &ExprArena, id: ExprId) -> Degree {
             };
             degree(arena, *base).pow(n)
         }
-        ExprNode::Sin(_) | ExprNode::Cos(_) | ExprNode::Exp(_) | ExprNode::Log(_) => Degree::Higher,
+        // Transcendentals are always > quadratic. Division is too: `div_into`
+        // folds the only degree-preserving case (constant denominator) before a
+        // `Div` node is created, so any other `Div` has a non-constant
+        // denominator.
+        ExprNode::Div(_, _)
+        | ExprNode::Sin(_)
+        | ExprNode::Cos(_)
+        | ExprNode::Exp(_)
+        | ExprNode::Log(_) => Degree::Higher,
     }
 }
 

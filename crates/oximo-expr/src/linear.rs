@@ -118,6 +118,25 @@ pub(crate) fn mul_into(arena: &mut ExprArena, lhs: ExprId, rhs: ExprId) -> ExprI
     arena.push(ExprNode::Mul(smallvec![lhs, rhs]))
 }
 
+/// Build `num / den`. If `den` is a nonzero constant `c`, fold to `num * (1/c)`
+/// so a constant-denominator division stays on the linear fast-path. Otherwise
+/// produce a `Div` node (always nonlinear, even when the numerator is linear).
+pub(crate) fn div_into(arena: &mut ExprArena, num: ExprId, den: ExprId) -> ExprId {
+    if let ExprNode::Const(c) = *arena.get(den) {
+        if c != 0.0 {
+            if let Some(mut t) = as_linear(arena, num) {
+                let inv = 1.0 / c;
+                t.coeffs.iter_mut().for_each(|(_, co)| *co *= inv);
+                t.constant *= inv;
+                return push_linear(arena, t);
+            }
+            let inv = arena.push(ExprNode::Const(1.0 / c));
+            return mul_into(arena, num, inv);
+        }
+    }
+    arena.push(ExprNode::Div(num, den))
+}
+
 /// Build `-rhs`, preserving linearity.
 pub(crate) fn neg_into(arena: &mut ExprArena, rhs: ExprId) -> ExprId {
     if let Some(mut t) = as_linear(arena, rhs) {
