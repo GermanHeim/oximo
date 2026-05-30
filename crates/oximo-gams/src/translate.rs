@@ -616,6 +616,13 @@ fn write_gams_expr(gms: &mut String, arena: &ExprArena, id: ExprId, leading_spac
             write_gams_expr(gms, arena, *exp, true);
             write!(gms, ")").unwrap();
         }
+        ExprNode::Div(num, den) => {
+            write!(gms, "(").unwrap();
+            write_gams_expr(gms, arena, *num, false);
+            write!(gms, " /").unwrap();
+            write_gams_expr(gms, arena, *den, true);
+            write!(gms, ")").unwrap();
+        }
         ExprNode::Sin(a) => {
             write!(gms, "sin(").unwrap();
             write_gams_expr(gms, arena, *a, false);
