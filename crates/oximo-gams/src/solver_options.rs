@@ -1067,4 +1067,51 @@ mod tests {
         assert!(matches!(cfg, GamsSolverConfig::Named(GamsSolver::Gurobi)));
         assert_eq!(cfg.gams_name(), "GUROBI");
     }
+
+    #[test]
+    fn supports_matches_solver_capabilities() {
+        // CPLEX: LP, MIP, QCP, MIQCP. QP/MIQP route through QCP/MIQCP, so the
+        // quadratic kinds pass while the general (MI)NLP kinds fail.
+        let cplex = GamsSolverConfig::Cplex(GamsCplexOptions::default());
+        assert!(cplex.supports(ModelKind::LP));
+        assert!(cplex.supports(ModelKind::MILP));
+        assert!(cplex.supports(ModelKind::QP), "QP routes through QCP");
+        assert!(cplex.supports(ModelKind::MIQP), "MIQP routes through MIQCP");
+        assert!(!cplex.supports(ModelKind::NLP));
+        assert!(!cplex.supports(ModelKind::MINLP));
+
+        // IPOPT: LP, NLP, QCP. LP, NLP, and QP pass, the integer kinds fail.
+        let ipopt = GamsSolverConfig::Ipopt(GamsIpoptOptions::default());
+        assert!(ipopt.supports(ModelKind::LP));
+        assert!(ipopt.supports(ModelKind::NLP));
+        assert!(ipopt.supports(ModelKind::QP), "QP routes through QCP");
+        assert!(!ipopt.supports(ModelKind::MIQP), "MIQP routes through MIQCP");
+        assert!(!ipopt.supports(ModelKind::MINLP));
+
+        // BARON handles all six oximo solve types.
+        let baron = GamsSolverConfig::Named(GamsSolver::Baron);
+        for k in [
+            ModelKind::LP,
+            ModelKind::MILP,
+            ModelKind::QP,
+            ModelKind::MIQP,
+            ModelKind::NLP,
+            ModelKind::MINLP,
+        ] {
+            assert!(baron.supports(k), "BARON should support {k:?}");
+        }
+
+        // HiGHS: LP/MIP only, no quadratic or nonlinear support THROUGH GAMS.
+        let highs = GamsSolverConfig::Highs(GamsHighsOptions::default());
+        assert!(highs.supports(ModelKind::LP));
+        assert!(!highs.supports(ModelKind::QP));
+        assert!(!highs.supports(ModelKind::NLP));
+    }
+
+    #[test]
+    fn supports_is_permissive_for_unknown_names() {
+        let custom = GamsSolverConfig::Named(GamsSolver::Custom("MYSOLVER".into()));
+        assert!(custom.supports(ModelKind::MINLP));
+        assert!(custom.supports(ModelKind::LP));
+    }
 }
