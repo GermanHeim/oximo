@@ -31,6 +31,12 @@ pub fn walk<V: Visitor>(arena: &ExprArena, id: ExprId, visitor: &mut V) {
             walk(arena, base, visitor);
             walk(arena, exp, visitor);
         }
+        ExprNode::Div(num, den) => {
+            let num = *num;
+            let den = *den;
+            walk(arena, num, visitor);
+            walk(arena, den, visitor);
+        }
         ExprNode::Const(_) | ExprNode::Var(_) | ExprNode::Param(_) | ExprNode::Linear { .. } => {}
     }
 }

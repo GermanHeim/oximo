@@ -43,6 +43,7 @@ pub fn evaluate<C: EvalContext>(arena: &ExprArena, id: ExprId, ctx: &C) -> Resul
             .try_fold(1.0, |acc, c| Ok::<_, EvalError>(acc * evaluate(arena, *c, ctx)?))?,
         ExprNode::Neg(inner) => -evaluate(arena, *inner, ctx)?,
         ExprNode::Pow(base, exp) => evaluate(arena, *base, ctx)?.powf(evaluate(arena, *exp, ctx)?),
+        ExprNode::Div(num, den) => evaluate(arena, *num, ctx)? / evaluate(arena, *den, ctx)?,
         ExprNode::Sin(inner) => evaluate(arena, *inner, ctx)?.sin(),
         ExprNode::Cos(inner) => evaluate(arena, *inner, ctx)?.cos(),
         ExprNode::Exp(inner) => evaluate(arena, *inner, ctx)?.exp(),

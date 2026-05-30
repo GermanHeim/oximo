@@ -45,6 +45,7 @@ pub enum ExprNode {
     Mul(Children),
     Neg(ExprId),
     Pow(ExprId, ExprId),
+    Div(ExprId, ExprId),
     Sin(ExprId),
     Cos(ExprId),
     Exp(ExprId),

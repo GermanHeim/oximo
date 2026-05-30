@@ -1,7 +1,7 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::handle::Expr;
-use crate::linear::{add_into, mul_into, neg_into, sub_into};
+use crate::linear::{add_into, div_into, mul_into, neg_into, sub_into};
 
 // -----------------------------------------------------------------------------
 // Expr <op> Expr
@@ -31,6 +31,14 @@ impl<'a> Mul for Expr<'a> {
     }
 }
 
+impl<'a> Div for Expr<'a> {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self {
+        let id = div_into(&mut self.arena.borrow_mut(), self.id, rhs.id);
+        Self::new(id, self.arena)
+    }
+}
+
 impl<'a> Neg for Expr<'a> {
     type Output = Self;
     fn neg(self) -> Self {
@@ -45,14 +53,13 @@ impl<'a> Neg for Expr<'a> {
 // -----------------------------------------------------------------------------
 
 macro_rules! impl_scalar_ops {
-    ($scalar:ty) => {
+    ($scalar:ty, $to_f64:expr) => {
         impl<'a> Add<$scalar> for Expr<'a> {
             type Output = Self;
             fn add(self, rhs: $scalar) -> Self {
-                #[allow(clippy::cast_lossless)]
                 let id = {
                     let mut a = self.arena.borrow_mut();
-                    let rhs_id = a.constant(rhs as f64);
+                    let rhs_id = a.constant($to_f64(rhs));
                     add_into(&mut a, self.id, rhs_id)
                 };
                 Self::new(id, self.arena)
@@ -69,10 +76,9 @@ macro_rules! impl_scalar_ops {
         impl<'a> Sub<$scalar> for Expr<'a> {
             type Output = Self;
             fn sub(self, rhs: $scalar) -> Self {
-                #[allow(clippy::cast_lossless)]
                 let id = {
                     let mut a = self.arena.borrow_mut();
-                    let rhs_id = a.constant(rhs as f64);
+                    let rhs_id = a.constant($to_f64(rhs));
                     sub_into(&mut a, self.id, rhs_id)
                 };
                 Self::new(id, self.arena)
@@ -82,10 +88,9 @@ macro_rules! impl_scalar_ops {
         impl<'a> Sub<Expr<'a>> for $scalar {
             type Output = Expr<'a>;
             fn sub(self, rhs: Expr<'a>) -> Expr<'a> {
-                #[allow(clippy::cast_lossless)]
                 let id = {
                     let mut a = rhs.arena.borrow_mut();
-                    let lhs_id = a.constant(self as f64);
+                    let lhs_id = a.constant($to_f64(self));
                     sub_into(&mut a, lhs_id, rhs.id)
                 };
                 Expr::new(id, rhs.arena)
@@ -95,10 +100,9 @@ macro_rules! impl_scalar_ops {
         impl<'a> Mul<$scalar> for Expr<'a> {
             type Output = Self;
             fn mul(self, rhs: $scalar) -> Self {
-                #[allow(clippy::cast_lossless)]
                 let id = {
                     let mut a = self.arena.borrow_mut();
-                    let rhs_id = a.constant(rhs as f64);
+                    let rhs_id = a.constant($to_f64(rhs));
                     mul_into(&mut a, self.id, rhs_id)
                 };
                 Self::new(id, self.arena)
@@ -111,11 +115,35 @@ macro_rules! impl_scalar_ops {
                 rhs * self
             }
         }
+
+        impl<'a> Div<$scalar> for Expr<'a> {
+            type Output = Self;
+            fn div(self, rhs: $scalar) -> Self {
+                let id = {
+                    let mut a = self.arena.borrow_mut();
+                    let rhs_id = a.constant($to_f64(rhs));
+                    div_into(&mut a, self.id, rhs_id)
+                };
+                Self::new(id, self.arena)
+            }
+        }
+
+        impl<'a> Div<Expr<'a>> for $scalar {
+            type Output = Expr<'a>;
+            fn div(self, rhs: Expr<'a>) -> Expr<'a> {
+                let id = {
+                    let mut a = rhs.arena.borrow_mut();
+                    let lhs_id = a.constant($to_f64(self));
+                    div_into(&mut a, lhs_id, rhs.id)
+                };
+                Expr::new(id, rhs.arena)
+            }
+        }
     };
 }
 
-impl_scalar_ops!(f64);
-impl_scalar_ops!(i32);
+impl_scalar_ops!(f64, core::convert::identity);
+impl_scalar_ops!(i32, f64::from);
 
 // -----------------------------------------------------------------------------
 // std::iter::Sum: the first element of the iterator carries the arena handle,

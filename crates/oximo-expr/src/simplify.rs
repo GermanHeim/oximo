@@ -18,6 +18,10 @@ pub fn simplify(arena: &mut ExprArena, id: ExprId) -> ExprId {
             (ExprNode::Const(b), ExprNode::Const(e)) => Some(ExprNode::Const(b.powf(*e))),
             _ => None,
         },
+        ExprNode::Div(num, den) => match (arena.get(num), arena.get(den)) {
+            (ExprNode::Const(n), ExprNode::Const(d)) => Some(ExprNode::Const(n / d)),
+            _ => None,
+        },
         ExprNode::Sin(inner)
         | ExprNode::Cos(inner)
         | ExprNode::Exp(inner)
