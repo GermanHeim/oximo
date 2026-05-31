@@ -35,6 +35,15 @@ impl<'a> Expr<'a> {
         Self::new(id, arena)
     }
 
+    /// If this handle is a bare variable, return its [`VarId`].
+    /// `None` for compound expressions (sums, products, constants, ...).
+    pub fn var_id(self) -> Option<VarId> {
+        match self.arena.borrow().get(self.id) {
+            ExprNode::Var(id) => Some(*id),
+            _ => None,
+        }
+    }
+
     pub fn pow(self, exponent: Self) -> Self {
         let id = self.arena.borrow_mut().push(ExprNode::Pow(self.id, exponent.id));
         Self::new(id, self.arena)
