@@ -3,7 +3,11 @@ use crate::arena::{ExprArena, ExprId, ExprNode};
 /// Highest-degree polynomial class an expression belongs to, ignoring constant
 /// folding. Used by backends to pick between linear, quadratic, and general
 /// nonlinear translation paths.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+///
+/// Variants are ordered by increasing degree, so `max` of two classes yields the
+/// dominating one (e.g. a model with a quadratic objective and a nonlinear
+/// constraint is `Nonlinear`).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExprClass {
     Linear,
     Quadratic,

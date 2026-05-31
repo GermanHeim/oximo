@@ -1,6 +1,6 @@
 use std::cell::{Ref, RefCell};
 
-use oximo_expr::{Expr, ExprArena, VarId};
+use oximo_expr::{Expr, ExprArena, ExprClass, VarId, classify};
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
@@ -269,38 +269,30 @@ impl Model {
         }
         let arena = self.arena.borrow();
         let has_int = self.variables.borrow().iter().any(|v| v.domain.is_integer());
-        let nonlinear = self.constraints.borrow().iter().any(|c| has_nonlinear(&arena, c.lhs))
-            || self.objective.borrow().as_ref().is_some_and(|o| has_nonlinear(&arena, o.expr));
-        let k = match (has_int, nonlinear) {
-            (false, false) => ModelKind::LP,
-            (true, false) => ModelKind::MILP,
-            (false, true) => ModelKind::NLP,
-            (true, true) => ModelKind::MINLP,
+
+        // Highest expression class across the objective and every constraint
+        // determines the model class
+        let mut class = ExprClass::Linear;
+        if let Some(o) = self.objective.borrow().as_ref() {
+            class = class.max(classify(&arena, o.expr));
+        }
+        for c in self.constraints.borrow().iter() {
+            if class == ExprClass::Nonlinear {
+                break;
+            }
+            class = class.max(classify(&arena, c.lhs));
+        }
+
+        let k = match (has_int, class) {
+            (false, ExprClass::Linear) => ModelKind::LP,
+            (true, ExprClass::Linear) => ModelKind::MILP,
+            (false, ExprClass::Quadratic) => ModelKind::QP,
+            (true, ExprClass::Quadratic) => ModelKind::MIQP,
+            (false, ExprClass::Nonlinear) => ModelKind::NLP,
+            (true, ExprClass::Nonlinear) => ModelKind::MINLP,
         };
         *self.cached_kind.borrow_mut() = Some(k);
         k
-    }
-}
-
-fn has_nonlinear(arena: &ExprArena, id: oximo_expr::ExprId) -> bool {
-    use oximo_expr::ExprNode as N;
-    match arena.get(id) {
-        N::Const(_) | N::Var(_) | N::Param(_) | N::Linear { .. } => false,
-        N::Neg(inner) => has_nonlinear(arena, *inner),
-        N::Add(children) => children.iter().any(|c| has_nonlinear(arena, *c)),
-        N::Mul(children) => {
-            let mut nonconst = 0;
-            for c in children {
-                if !matches!(arena.get(*c), N::Const(_)) {
-                    nonconst += 1;
-                }
-                if has_nonlinear(arena, *c) {
-                    return true;
-                }
-            }
-            nonconst >= 2
-        }
-        N::Div(_, _) | N::Pow(_, _) | N::Sin(_) | N::Cos(_) | N::Exp(_) | N::Log(_) => true,
     }
 }
 
