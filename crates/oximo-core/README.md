@@ -181,7 +181,6 @@ Inferred automatically from variables and expressions, cached and invalidated on
 | `NLP`   | All continuous, `Pow`/`Sin`/`Cos`/`Exp`/`Log`    |
 | `MINLP` | Any integer/binary + nonlinear                   |
 
-For now, we only support linear constraints, so `QP` and `NLP` are not possible. But the API is designed to allow nonlinear constraints in the future without breaking changes.
 
 ## License
 
