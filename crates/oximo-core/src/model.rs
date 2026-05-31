@@ -134,6 +134,18 @@ impl Model {
         self.variables.borrow().len()
     }
 
+    /// Fix a single-variable expression to `value`.
+    /// Convenience over [`Self::fix_var`] for handles from [`Model::var`] or
+    /// [`crate::IndexedVar`] indexing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `e` is not a bare variable handle.
+    pub fn fix(&self, e: Expr<'_>, value: f64) {
+        let id = e.var_id().expect("Model::fix expects a single-variable expression");
+        self.fix_var(id, value);
+    }
+
     /// Fix variable `id` to `value` by setting `lb = ub = value`.
     pub fn fix_var(&self, id: VarId, value: f64) {
         let mut vars = self.variables.borrow_mut();
