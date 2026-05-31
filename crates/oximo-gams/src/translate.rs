@@ -747,7 +747,7 @@ mod tests {
         m.constraint("xy", (x * y).le(4.0));
         m.minimize(x + y);
         let gms = render(&m, &GamsOptions::default());
-        assert!(gms.contains("Solve oximo_m using NLP minimizing v_obj;"), "got:\n{gms}");
+        assert!(gms.contains("Solve oximo_m using QCP minimizing v_obj;"), "got:\n{gms}");
         // The product term must appear on the LHS, the user RHS untouched.
         assert!(gms.contains("v0") && gms.contains("v1"), "vars missing:\n{gms}");
         assert!(gms.contains("=l= 4"), "expected =l= 4 on the right:\n{gms}");
