@@ -812,4 +812,44 @@ mod tests {
         let gms = render(&m, &GamsOptions::default());
         assert!(gms.contains(" **"), "expected ** for real Pow:\n{gms}");
     }
+
+    #[test]
+    fn validate_solver_rejects_lp_only_solver_on_nlp() {
+        use crate::GamsSolver;
+        use crate::solver_options::{GamsCplexOptions, GamsSolverConfig};
+        let o = GamsOptions::default().solver(GamsSolverConfig::Cplex(GamsCplexOptions::default()));
+        let err = validate_solver(&o, ModelKind::NLP).unwrap_err();
+        match err {
+            SolverError::Backend(msg) => {
+                assert!(msg.contains("CPLEX"), "names solver: {msg}");
+                assert!(msg.contains("NLP"), "names solve type: {msg}");
+            }
+            other => panic!("expected Backend error, got {other:?}"),
+        }
+        // A named LP/MIP solver is rejected the same way.
+        let o = GamsOptions::default().solver(GamsSolver::Highs);
+        assert!(validate_solver(&o, ModelKind::MINLP).is_err());
+    }
+
+    #[test]
+    fn validate_solver_accepts_compatible_solver() {
+        use crate::solver_options::{GamsIpoptOptions, GamsSolverConfig};
+        let o = GamsOptions::default().solver(GamsSolverConfig::Ipopt(GamsIpoptOptions::default()));
+        assert!(validate_solver(&o, ModelKind::LP).is_ok());
+        assert!(validate_solver(&o, ModelKind::NLP).is_ok());
+        assert!(validate_solver(&o, ModelKind::QP).is_ok(), "QP routes through QCP");
+        // IPOPT does LP/NLP/QCP only, so the integer kinds must be rejected.
+        assert!(validate_solver(&o, ModelKind::MILP).is_err());
+        assert!(validate_solver(&o, ModelKind::MIQP).is_err());
+    }
+
+    #[test]
+    fn validate_solver_noop_without_solver_and_for_custom() {
+        use crate::GamsSolver;
+        // No explicit solver: GAMS picks its default, nothing to validate.
+        assert!(validate_solver(&GamsOptions::default(), ModelKind::MINLP).is_ok());
+        // Unknown/custom names can't be validated, so they pass.
+        let o = GamsOptions::default().solver(GamsSolver::Custom("MYSOLVER".into()));
+        assert!(validate_solver(&o, ModelKind::MINLP).is_ok());
+    }
 }
