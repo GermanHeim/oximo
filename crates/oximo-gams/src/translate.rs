@@ -683,6 +683,11 @@ fn write_gams_expr(gms: &mut String, arena: &ExprArena, id: ExprId, leading_spac
             write_gams_expr(gms, arena, *a, false);
             write!(gms, ")").unwrap();
         }
+        ExprNode::Abs(a) => {
+            write!(gms, "abs(").unwrap();
+            write_gams_expr(gms, arena, *a, false);
+            write!(gms, ")").unwrap();
+        }
     }
 }
 
@@ -764,6 +769,16 @@ mod tests {
         assert!(gms.contains("Solve oximo_m using NLP minimizing v_obj;"), "got:\n{gms}");
         assert!(gms.contains("sin("), "expected sin(...) in objective:\n{gms}");
         assert!(gms.contains("exp("), "expected exp(...) in objective:\n{gms}");
+    }
+
+    #[test]
+    fn abs_objective_emits_abs_func() {
+        let m = Model::new("absnlp");
+        let x = m.var("x").lb(-5.0).ub(5.0).build();
+        m.minimize(x.abs());
+        let gms = render(&m, &GamsOptions::default());
+        assert!(gms.contains("Solve oximo_m using NLP minimizing v_obj;"), "got:\n{gms}");
+        assert!(gms.contains("abs("), "expected abs(...) in objective:\n{gms}");
     }
 
     #[test]

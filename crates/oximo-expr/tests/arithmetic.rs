@@ -168,6 +168,28 @@ fn evaluate_division_by_zero_is_infinite() {
 }
 
 #[test]
+fn evaluate_abs() {
+    let arena = RefCell::new(ExprArena::new());
+    let x = make_var(&arena, 0);
+    let e = x.abs();
+    let arena_ref = arena.borrow();
+    let neg: &[f64] = &[-5.0];
+    let pos: &[f64] = &[3.0];
+    assert_eq!(evaluate(&arena_ref, e.id, &neg).unwrap(), 5.0);
+    assert_eq!(evaluate(&arena_ref, e.id, &pos).unwrap(), 3.0);
+}
+
+#[test]
+fn abs_is_nonlinear() {
+    let arena = RefCell::new(ExprArena::new());
+    let x = make_var(&arena, 0);
+    let e = x.abs();
+    assert!(matches!(arena.borrow().get(e.id), ExprNode::Abs(_)));
+    assert_eq!(classify(&arena.borrow(), e.id), ExprClass::Nonlinear);
+    assert!(extract_linear(&arena.borrow(), e.id).is_none());
+}
+
+#[test]
 fn large_sum_extracts_correctly() {
     let arena = RefCell::new(ExprArena::new());
     let vars: Vec<_> = (0..100).map(|i| make_var(&arena, i)).collect();
