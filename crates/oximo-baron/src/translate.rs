@@ -493,7 +493,8 @@ fn fmt(v: f64) -> String {
 /// The times file is a single whitespace-separated line. Field positions follow
 /// the BARON convention (0-indexed here):
 /// `[5]` lower bound, `[6]` upper bound, `[7]` solver status, `[8]` model status,
-/// `[11]` node where the optimum was found (`-3` => no solution), last = wall time.
+/// `[10]` branch-and-reduce iterations, `[11]` node where the optimum was found
+/// (`-3` => no solution), last = wall time.
 fn parse_solution(
     tim: &str,
     res: &str,
@@ -509,6 +510,7 @@ fn parse_solution(
     let model_status = int_at(8).unwrap_or(5);
     let lower = float_at(5);
     let upper = float_at(6);
+    let iterations = int_at(10).and_then(|n| u64::try_from(n).ok()).unwrap_or(0);
     let nodeopt = int_at(11);
 
     let status = map_status(solver_status, model_status);
@@ -533,7 +535,7 @@ fn parse_solution(
         reduced_costs: FxHashMap::default(),
         status,
         solve_time: elapsed,
-        iterations: 0,
+        iterations,
         raw_log,
     }
 }
@@ -793,11 +795,12 @@ mod tests {
 
     #[test]
     fn parse_tim_picks_objective_by_sense() {
-        // name ncon nvar a b lower upper solver model c d nodeopt ... wall
-        let tim = "m 1 2 0 0 1.5 9.5 1 1 0 0 7 0 0 0.42";
+        // name ncon nvar a b lower upper solver model c iters nodeopt ... wall
+        let tim = "m 1 2 0 0 1.5 9.5 1 1 0 42 7 0 0 0.42";
         let r = parse_solution(tim, "", ObjectiveSense::Minimize, std::time::Duration::ZERO, None);
         assert_eq!(r.status, SolverStatus::Optimal);
         assert_eq!(r.objective, Some(9.5)); // upper bound for minimize
+        assert_eq!(r.iterations, 42); // branch-and-reduce iterations from tim[10]
         let r = parse_solution(tim, "", ObjectiveSense::Maximize, std::time::Duration::ZERO, None);
         assert_eq!(r.objective, Some(1.5)); // lower bound for maximize
     }
