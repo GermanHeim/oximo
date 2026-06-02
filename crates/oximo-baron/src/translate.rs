@@ -449,6 +449,14 @@ fn write_bar_expr(bar: &mut String, arena: &ExprArena, id: ExprId) -> Result<(),
                     .into(),
             ));
         }
+        ExprNode::Abs(a) => {
+            // BARON has no abs() intrinsic.
+            // We reformulate: |x| = (x^2)^(1/2),
+            // As suggested by the BARON user manual.
+            write!(bar, "(((").unwrap();
+            write_bar_expr(bar, arena, *a)?;
+            write!(bar, ") ^ 2) ^ 0.5)").unwrap();
+        }
     }
     Ok(())
 }
@@ -465,7 +473,8 @@ fn expr_has_var(arena: &ExprArena, id: ExprId) -> bool {
         | ExprNode::Sin(a)
         | ExprNode::Cos(a)
         | ExprNode::Exp(a)
-        | ExprNode::Log(a) => expr_has_var(arena, *a),
+        | ExprNode::Log(a)
+        | ExprNode::Abs(a) => expr_has_var(arena, *a),
         ExprNode::Pow(a, b) | ExprNode::Div(a, b) => {
             expr_has_var(arena, *a) || expr_has_var(arena, *b)
         }
@@ -681,6 +690,17 @@ mod tests {
         assert!(bar.contains("INTEGER_VARIABLES x1;"), "{bar}");
         assert!(bar.contains("POSITIVE_VARIABLES x2;"), "{bar}");
         assert!(bar.contains("OBJ: maximize"), "{bar}");
+    }
+
+    #[test]
+    fn abs_reformulated_as_square_root() {
+        let m = Model::new("absbar");
+        let x = m.var("x").lb(-10.0).ub(10.0).build();
+        m.minimize(x.abs());
+        let bar = render(&m);
+        // BARON has no abs(), reformulate |x| = (x^2)^(1/2).
+        assert!(bar.contains(") ^ 2) ^ 0.5)"), "expected abs rewrite:\n{bar}");
+        assert!(!bar.contains("abs("), "must not emit a literal abs():\n{bar}");
     }
 
     #[test]

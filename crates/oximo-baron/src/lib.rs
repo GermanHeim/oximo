@@ -5,9 +5,6 @@
 //! N. Sahinidis, BARON User Manual, version 2026.4.12.
 //! The Optimization Firm, LLC, Apr. 12, 2026.
 
-// TODO: Add support for absolute values, reformulating as |x| = (x^2)^(1/2).
-// First we need to have an Abs node in oximo Expr.
-
 mod options;
 mod translate;
 
