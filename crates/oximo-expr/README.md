@@ -30,6 +30,7 @@ Neg(ExprId)
 Pow(ExprId, ExprId)
 Div(ExprId, ExprId) // numerator / denominator
 Sin(ExprId) / Cos(ExprId) / Exp(ExprId) / Log(ExprId)
+Abs(ExprId)
 Linear { coeffs: Vec<(VarId, f64)>, constant: f64 } // LP fast-path
 ```
 
@@ -57,6 +58,7 @@ expr.sin()
 expr.cos()
 expr.exp()
 expr.log()
+expr.abs()
 expr/expr
 ```
 
