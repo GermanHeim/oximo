@@ -13,6 +13,7 @@ If you don't have the required setup, you can skip these tests, but they should 
 A reviewer will run these tests manually. -->
 - [ ] `cargo test --features gams` passes (requires GAMS)
 - [ ] `cargo test --features gurobi` passes (requires Gurobi)
+- [ ] `cargo test --features baron` passes (requires BARON)
 
 ## Changes Made
 
