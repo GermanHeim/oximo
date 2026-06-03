@@ -7,6 +7,7 @@ mod eval;
 mod handle;
 mod linear;
 mod ops;
+mod quadratic;
 mod simplify;
 mod visit;
 
@@ -16,5 +17,6 @@ pub use eval::{EvalContext, EvalError, evaluate};
 pub use handle::Expr;
 pub use linear::{LinearTerms, extract_linear};
 pub use ops::dot;
+pub use quadratic::{QuadraticTerms, extract_quadratic};
 pub use simplify::simplify;
 pub use visit::{Visitor, walk};
