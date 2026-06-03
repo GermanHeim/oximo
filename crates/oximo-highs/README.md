@@ -2,7 +2,7 @@
 
 HiGHS LP/MILP backend for [oximo](https://github.com/germanheim/oximo).
 
-Wraps the [`highs`](https://crates.io/crates/highs) crate (HiGHS bundled, no separate install required). Supports `LP` and `MILP` model kinds.
+Wraps the [`highs`](https://crates.io/crates/highs) crate (HiGHS bundled, no separate install required). Supports `LP`, `MILP`, and convex continuous `QP` model kinds.
 
 ## Usage
 
@@ -42,6 +42,36 @@ println!("obj = {}", result.objective.unwrap()); // 34.0
 println!("x   = {}", result.value_of(x).unwrap()); // 6.0
 println!("y   = {}", result.value_of(y).unwrap()); // 4.0
 ```
+
+## Quadratic programs (QP)
+
+A quadratic objective (e.g. `x.powi(2)`, `x * y`) with linear constraints is
+detected as `QP` and solved by uploading the Hessian `Q` via
+`Highs_passHessian`. oximo derives `Q` from the objective with
+`oximo_expr::extract_quadratic`; HiGHS then minimizes `c'x + 0.5·x'Qx`.
+
+```rust,no_run
+use oximo_core::prelude::*;
+use oximo_highs::{Highs, HighsOptions};
+use oximo_solver::{Solver, SolverStatus};
+
+let m = Model::new("qp");
+let x = m.var("x").lb(-10.0).ub(10.0).build();
+let y = m.var("y").lb(-10.0).ub(10.0).build();
+m.constraint("c", (x + y).eq(1.0));
+m.minimize(x.powi(2) + y.powi(2)); // min x^2 + y^2
+
+let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
+assert_eq!(result.status, SolverStatus::Optimal); // x = y = 0.5, obj = 0.5
+```
+
+> **Convexity.** HiGHS solves **convex** QPs only and does *not* verify that
+> `Q` is positive semidefinite. On an **indefinite `Q`** it may return a
+> **wrong or non-optimal solution** (it only rejects negative diagonal
+> entries). If `Q` is not PSD by construction, verify convexity yourself.
+
+HiGHS does **not** support MIQP (integer + quadratic, returned as
+`UnsupportedKind`) or quadratic *constraints* (returned as `Nonlinear`).
 
 ## Options
 
