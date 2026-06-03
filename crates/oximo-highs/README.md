@@ -65,10 +65,11 @@ let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
 assert_eq!(result.status, SolverStatus::Optimal); // x = y = 0.5, obj = 0.5
 ```
 
-> **Convexity.** HiGHS solves **convex** QPs only and does *not* verify that
-> `Q` is positive semidefinite. On an **indefinite `Q`** it may return a
-> **wrong or non-optimal solution** (it only rejects negative diagonal
-> entries). If `Q` is not PSD by construction, verify convexity yourself.
+> **Convexity.** HiGHS supports only convex QPs.
+> For minimization, `Q` must be positive semidefinite (PSD),
+> and for maximization, `Q` must be negative semidefinite (NSD).
+> HiGHS does not check this condition, so supplying an indefinite
+> or incorrectly signed Hessian may lead to incorrect or non-optimal solutions.
 
 HiGHS does **not** support MIQP (integer + quadratic, returned as
 `UnsupportedKind`) or quadratic *constraints* (returned as `Nonlinear`).
