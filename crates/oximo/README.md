@@ -172,7 +172,7 @@ m.add_constraints_over("c", &set, |k: IndexKey| x[&k].le(1.0));
 
 ### Nonlinear expressions
 
-`Pow`, `Sin`, `Cos`, `Exp`, `Log`, and bilinear products are first-class. The
+`Pow`, `Sin`, `Cos`, `Exp`, `Log`, `Abs`, and bilinear products are first-class. The
 model's kind (`LP`/`MILP`/`QP`/`MIQP`/`NLP`/`MINLP`) is inferred from the
 expressions.
 
