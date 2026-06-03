@@ -21,9 +21,11 @@ use crate::options::apply as apply_options;
 /// integer + quadratic (MIQP) models produce [`SolverError::Nonlinear`] or
 /// [`SolverError::UnsupportedKind`].
 ///
-/// HiGHS solves **convex** QPs only and does not verify positive
-/// semidefiniteness of `Q`: on an indefinite Hessian it may return a wrong or
-/// non-optimal solution.
+/// HiGHS supports only convex QPs.
+/// For minimization, `Q` must be positive semidefinite (PSD),
+/// and for maximization, `Q` must be negative semidefinite (NSD).
+/// HiGHS does not check this condition, so supplying an indefinite
+/// or incorrectly signed Hessian may lead to incorrect or non-optimal solutions.
 ///
 /// # Errors
 ///
