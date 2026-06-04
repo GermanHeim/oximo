@@ -152,3 +152,62 @@ pub(crate) fn neg_into(arena: &mut ExprArena, rhs: ExprId) -> ExprId {
 pub fn extract_linear(arena: &ExprArena, id: ExprId) -> Option<LinearTerms> {
     as_linear(arena, id)
 }
+
+/// A nonlinear residual summand: the existing arena node `id`, taken with a
+/// leading negation when `neg` is set. Carrying the sign as a flag.
+/// Lets [`split_linear`] run without a mutable arena.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct SignedExpr {
+    pub id: ExprId,
+    pub neg: bool,
+}
+
+/// Split an expression into its linear part and a nonlinear residual. The
+/// returned `(LinearTerms, Vec<SignedExpr>)` satisfies
+///
+/// ```text
+/// value(id) == sum_i coef_i * var_i + constant + sum_j (-1)^neg_j value(id_j)
+/// ```
+///
+/// where the residual is empty when the whole expression is linear and
+/// otherwise lists the remaining nonlinear summands (each a pre-existing arena
+/// node, optionally negated). `LinearTerms` may have empty `coeffs` and
+/// `constant == 0.0` when the whole expression is purely nonlinear.
+pub fn split_linear(arena: &ExprArena, id: ExprId) -> (LinearTerms, Vec<SignedExpr>) {
+    if let Some(lt) = as_linear(arena, id) {
+        return (lt, Vec::new());
+    }
+    let mut lin = LinearTerms::default();
+    let mut residual: Vec<SignedExpr> = Vec::new();
+    let mut sign_stack: smallvec::SmallVec<[(ExprId, f64); 8]> = smallvec![(id, 1.0)];
+    while let Some((cur, sign)) = sign_stack.pop() {
+        match arena.get(cur) {
+            ExprNode::Add(children) => {
+                for c in children.iter().copied() {
+                    sign_stack.push((c, sign));
+                }
+            }
+            ExprNode::Neg(inner) => sign_stack.push((*inner, -sign)),
+            _ => {
+                if let Some(mut t) = as_linear(arena, cur) {
+                    if (sign - 1.0).abs() > 0.0 {
+                        t.coeffs.iter_mut().for_each(|(_, c)| *c *= sign);
+                        t.constant *= sign;
+                    }
+                    for (v, c) in t.coeffs {
+                        if let Some((_, acc)) = lin.coeffs.iter_mut().find(|(vv, _)| *vv == v) {
+                            *acc += c;
+                        } else {
+                            lin.coeffs.push((v, c));
+                        }
+                    }
+                    lin.constant += t.constant;
+                } else {
+                    residual.push(SignedExpr { id: cur, neg: sign < 0.0 });
+                }
+            }
+        }
+    }
+    lin.coeffs.retain(|(_, c)| *c != 0.0);
+    (lin, residual)
+}
