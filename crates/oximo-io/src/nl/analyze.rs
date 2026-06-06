@@ -130,7 +130,12 @@ fn validate(arena: &ExprArena, id: ExprId, nonfinite_strings: bool) -> Result<()
             Ok(())
         }
         ExprNode::Var(_) => Ok(()),
-        ExprNode::Param(_) => Err(IoError::UnsupportedNode("Param")),
+        ExprNode::Param(p) => {
+            if !nonfinite_strings && !arena.param_value(*p).is_finite() {
+                return Err(IoError::InvalidNumber);
+            }
+            Ok(())
+        }
         ExprNode::Neg(x)
         | ExprNode::Sin(x)
         | ExprNode::Cos(x)
