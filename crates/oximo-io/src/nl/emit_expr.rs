@@ -78,7 +78,7 @@ pub(crate) fn emit_expr<W: Write>(
             let idx = var_index.get(v).copied().expect("var missing from permutation");
             w.var(idx)?;
         }
-        ExprNode::Param(_) => return Err(IoError::UnsupportedNode("Param")),
+        ExprNode::Param(p) => w.num(arena.param_value(*p))?,
         ExprNode::Neg(x) => {
             w.op(16)?;
             emit_expr(w, arena, var_index, *x)?;
