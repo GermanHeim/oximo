@@ -6,8 +6,6 @@
 //! supply directly (imported functions `F`, suffixes `S`, defined variables
 //! `V`, dual seeds `d`, complementarity entries in `r`).
 
-use std::path::PathBuf;
-
 /// Encoding of the body that follows the (always-ASCII) 10-line header.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum NlFormat {
@@ -38,11 +36,10 @@ pub struct WriteOptions {
     /// `-Infinity` / `NaN` strings (matching AMPL `NL_LIB_GFMT`). When `false`
     /// (default) the writer fails with `IoError::InvalidNumber`.
     pub nonfinite_strings: bool,
-    /// When set on a `write_nl_files` call, the writer also emits sibling
-    /// `<stub>.row` (constraint names) and `<stub>.col` (variable names) files,
-    /// populating the header's `max_name_len` fields. The stub is the basename
-    /// without extension.
-    pub aux_files: Option<PathBuf>,
+    /// When `true`, a `write_nl_files` call also emits the sibling
+    /// `<stub>.row` (constraint names) and `<stub>.col` (variable names) files
+    /// next to the `.nl`, and populates the header's `max_name_len` fields.
+    pub aux_files: bool,
     /// Imported function declarations (F segments). Empty by default.
     pub functions: Vec<ImportedFunction>,
     /// Suffix entries (S segments). Empty by default.
@@ -63,7 +60,7 @@ impl Default for WriteOptions {
             precision: None,
             comments: true,
             nonfinite_strings: false,
-            aux_files: None,
+            aux_files: false,
             functions: Vec::new(),
             suffixes: Vec::new(),
             defined_vars: Vec::new(),

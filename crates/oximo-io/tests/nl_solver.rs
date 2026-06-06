@@ -33,7 +33,7 @@ fn write_and_solve(m: &Model, expected_obj: f64, tol: f64) {
     let dir = TempDir::new().expect("tempdir");
     let stub = dir.path().join(STUB);
 
-    let opts = WriteOptions { aux_files: Some(dir.path().to_path_buf()), ..Default::default() };
+    let opts = WriteOptions { aux_files: true, ..Default::default() };
     write_nl_files(m, &stub, &opts).expect("write nl files");
 
     let status = Command::new(&bin)

@@ -124,14 +124,13 @@ pub fn to_nl_string_with(model: &Model, opts: &WriteOptions) -> Result<String, I
     String::from_utf8(buf).map_err(|_| IoError::BinaryToString)
 }
 
-/// Write `<stub>.nl` plus optional `<stub>.row` (constraint names) and
-/// `<stub>.col` (variable names) files. Variable/constraint names are
-/// written in NL (permuted) order, one per line, matching the convention
-/// expected by AMPL.
+/// Write `<stub>.nl`, plus the `<stub>.row` (constraint names) and
+/// `<stub>.col` (variable names) sidecars when `opts.aux_files` is set.
+/// Variable/constraint names are written in NL (permuted) order, one per line,
+/// matching the convention expected by AMPL.
 ///
-/// If `opts.aux_files` is `Some(dir)`, the sidecars go into that directory
-/// (the writer still computes paths relative to `stub`s parent if `dir` is
-/// relative).
+/// The sidecars are always written alongside the `.nl` (same stub, `.row` /
+/// `.col` extensions).
 ///
 /// # Errors
 ///
@@ -142,7 +141,7 @@ pub fn write_nl_files(model: &Model, stub: &Path, opts: &WriteOptions) -> Result
         let mut f = std::fs::File::create(&nl_path)?;
         write_nl_with(model, &mut f, opts)?;
     }
-    if opts.aux_files.is_some() {
+    if opts.aux_files {
         write_aux_files(model, stub, opts.nonfinite_strings)?;
     }
     Ok(())

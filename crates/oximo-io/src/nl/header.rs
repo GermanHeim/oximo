@@ -79,7 +79,7 @@ impl Stats {
         let nnz_jac: usize = analysis.cons_vars.iter().map(Vec::len).sum();
         let nnz_grad = analysis.obj_vars.len();
 
-        let (max_con_name_len, max_var_name_len) = if opts.aux_files.is_some() {
+        let (max_con_name_len, max_var_name_len) = if opts.aux_files {
             (
                 constraints.iter().map(|c| c.name.len()).max().unwrap_or(0),
                 vars.iter().map(|v| v.name.len()).max().unwrap_or(0),
