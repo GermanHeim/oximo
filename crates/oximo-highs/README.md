@@ -1,6 +1,6 @@
 # oximo-highs
 
-HiGHS LP/MILP backend for [oximo](https://github.com/germanheim/oximo).
+HiGHS LP/MILP backend for [oximo](https://github.com/oximo-rs/oximo).
 
 Wraps the [`highs`](https://crates.io/crates/highs) crate (HiGHS bundled, no separate install required). Supports `LP`, `MILP`, and convex continuous `QP` model kinds.
 

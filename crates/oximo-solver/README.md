@@ -1,6 +1,6 @@
 # oximo-solver
 
-Solver trait, result types, status codes, and shared option building blocks for [oximo](https://github.com/germanheim/oximo).
+Solver trait, result types, status codes, and shared option building blocks for [oximo](https://github.com/oximo-rs/oximo).
 
 This crate defines the contract that backend crates implement. End users interact with concrete backends (`Highs`, `Gurobi`, `Gams`) exposed by the umbrella `oximo` crate, they do not depend on this crate directly unless they are writing a new backend.
 

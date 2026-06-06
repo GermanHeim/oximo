@@ -1,6 +1,6 @@
 # oximo-baron
 
-BARON (Branch-And-Reduce Optimization Navigator) backend for [oximo](https://github.com/germanheim/oximo).
+BARON (Branch-And-Reduce Optimization Navigator) backend for [oximo](https://github.com/oximo-rs/oximo).
 
 Writes an oximo `Model` to a temporary `.bar` file, invokes the BARON executable via `std::process::Command`, and parses the solution from BARON's times (`tim.lst`) and results (`res.lst`) files. Supports `LP`, `MILP`, `QP`, `MIQP`, `NLP`, and `MINLP` model kinds.
 

@@ -1,6 +1,6 @@
 # oximo-io
 
-Model I/O for [oximo](https://github.com/germanheim/oximo): MPS, LP, and NLP writers.
+Model I/O for [oximo](https://github.com/oximo-rs/oximo): MPS, LP, and NLP writers.
 
 Converts an oximo [`oximo_core::Model`] to standard text formats for exchanging models with external solvers and tools.
 

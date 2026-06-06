@@ -21,7 +21,7 @@ keywords = ["optimization", "math", "science"]
 categories = ["mathematics", "science", "algorithms"]
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/germanheim/oximo"
+repository = "https://github.com/oximo-rs/oximo"
 authors = ["Germán Martín Heim <german.martin.heim@gmail.com>"]
 
 [workspace.dependencies]

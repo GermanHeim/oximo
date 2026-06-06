@@ -1,6 +1,6 @@
 # oximo-core
 
-Core modeling types for [oximo](https://github.com/germanheim/oximo): `Model`, `Variable`, `Set`, `Constraint`, `Objective`, `Parameter`, `IndexedVar`, `Domain`, and `ModelKind`.
+Core modeling types for [oximo](https://github.com/oximo-rs/oximo): `Model`, `Variable`, `Set`, `Constraint`, `Objective`, `Parameter`, `IndexedVar`, `Domain`, and `ModelKind`.
 
 Re-exports `oximo-expr` types (`Expr`, `ExprArena`, `ExprId`, `ExprNode`, `ParamId`, `VarId`) so downstream code does not need a separate `oximo-expr` import. End users typically depend on the umbrella `oximo` crate rather than this one directly.
 

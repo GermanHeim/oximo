@@ -1,6 +1,6 @@
 # oximo-expr
 
-Arena-allocated expression tree for [oximo](https://github.com/germanheim/oximo).
+Arena-allocated expression tree for [oximo](https://github.com/oximo-rs/oximo).
 
 All expressions in oximo are nodes in a single `ExprArena` owned by the `Model`. User code holds lightweight `Expr` handles, a `(ExprId, &RefCell<ExprArena>)` pair. Copying an `Expr` copies an ID, not a subtree. Operator overloads collapse linear combinations into a single `Linear` node so LP/MILP construction never traverses an `Add(Mul(Const, Var), ...)` tree.
 

@@ -1,6 +1,6 @@
 # oximo-gurobi
 
-Gurobi backend for [oximo](https://github.com/germanheim/oximo).
+Gurobi backend for [oximo](https://github.com/oximo-rs/oximo).
 
 Wraps the [`grb`](https://crates.io/crates/grb) crate (`gurobi12` feature). Supports `LP`, `MILP`, `QP`, `MIQP`, `NLP`, and `MINLP` model kinds. Nonlinear expressions (`Pow`, `Sin`, `Cos`, `Exp`, `Log`, `Abs`, bilinear `Mul`) are lowered to auxiliary variables wired together with Gurobi's native `add_genconstr_*` and `add_qconstr` APIs. `NonConvex = 2` is enabled automatically when needed.
 

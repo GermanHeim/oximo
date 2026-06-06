@@ -1,6 +1,6 @@
 # oximo-gams
 
-GAMS backend for [oximo](https://github.com/germanheim/oximo).
+GAMS backend for [oximo](https://github.com/oximo-rs/oximo).
 
 Writes an oximo `Model` to a temporary `.gms` file, invokes the GAMS executable via `std::process::Command`, and parses the solution from a PUT-generated text file. Supports `LP`, `MILP`, `QP`, `MIQP`, `NLP`, and `MINLP` model kinds.
 
