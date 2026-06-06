@@ -140,7 +140,7 @@ fn aux_files_sidecar() {
     let dir = TempDir::new().expect("tempdir");
     let stub = dir.path().join("problem");
     let mut opts = WriteOptions::ascii_lean();
-    opts.aux_files = Some(dir.path().to_path_buf());
+    opts.aux_files = true;
     write_nl_files(&m, &stub, &opts).expect("files");
 
     let row = std::fs::read_to_string(dir.path().join("problem.row")).expect("row");

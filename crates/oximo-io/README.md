@@ -127,8 +127,8 @@ m.minimize((1.0 - x).powi(2) + 100.0 * (y - x.powi(2)).powi(2));
 // To string (ASCII only)
 let nl = to_nl_string(&m)?;
 
-// To <stub>.nl plus .row / .col name sidecars
-let opts = WriteOptions { aux_files: Some(".".into()), ..Default::default() };
+// To <stub>.nl plus sibling .row / .col name files
+let opts = WriteOptions { aux_files: true, ..Default::default() };
 write_nl_files(&m, Path::new("rosen"), &opts)?;
 
 // Binary output needs to be written to a byte sink
