@@ -223,3 +223,50 @@ pub fn split_linear(arena: &ExprArena, id: ExprId) -> (LinearTerms, Vec<SignedEx
     lin.coeffs.retain(|(_, c)| *c != 0.0);
     (lin, residual)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arena::{ExprArena, ExprNode, VarId};
+
+    #[test]
+    fn param_times_var_stays_symbolic_until_extracted() {
+        // Build `price * x` through the operator helper. The parameter must NOT
+        // be folded into a Linear node at build time (so it stays re-bindable)
+        let mut arena = ExprArena::new();
+        let pid = arena.new_param(3.0);
+        let price = arena.param(pid);
+        let xnode = arena.push(ExprNode::Var(VarId(0)));
+        let prod = mul_into(&mut arena, price, xnode);
+        assert!(matches!(arena.get(prod), ExprNode::Mul(_)));
+
+        let terms = extract_linear(&arena, prod).expect("linear");
+        assert_eq!(terms.coeffs, vec![(VarId(0), 3.0)]);
+        assert!(terms.constant.abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn rebinding_param_updates_extracted_coeff() {
+        let mut arena = ExprArena::new();
+        let pid = arena.new_param(3.0);
+        let price = arena.param(pid);
+        let xnode = arena.push(ExprNode::Var(VarId(0)));
+        let prod = mul_into(&mut arena, price, xnode);
+
+        arena.set_param_value(pid, 10.0);
+        let terms = extract_linear(&arena, prod).expect("linear");
+        assert_eq!(terms.coeffs, vec![(VarId(0), 10.0)]);
+    }
+
+    #[test]
+    fn param_plus_var_resolves_constant() {
+        let mut arena = ExprArena::new();
+        let pid = arena.new_param(5.0);
+        let price = arena.param(pid);
+        let xnode = arena.push(ExprNode::Var(VarId(0)));
+        let sum = add_into(&mut arena, price, xnode);
+        let terms = extract_linear(&arena, sum).expect("linear");
+        assert_eq!(terms.coeffs, vec![(VarId(0), 1.0)]);
+        assert!((terms.constant - 5.0).abs() < f64::EPSILON);
+    }
+}
