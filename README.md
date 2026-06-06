@@ -4,6 +4,9 @@
   <img alt="oximo logo" src="https://raw.githubusercontent.com/GermanHeim/oximo/main/media/logo-dark.svg">
 </picture>
 
+<a href="https://github.com/GermanHeim/oximo/tree/main/crates/oximo">
+    <img src="https://img.shields.io/badge/oximo-examples-orange" alt = "Examples">
+</a>
 <a href="https://crates.io/crates/oximo">
     <img src="https://img.shields.io/crates/v/oximo?logo=rust&color=E05D44" alt="crates version" />
 </a>
@@ -31,24 +34,6 @@ println!("obj = {:?}", result.objective);   // 34.0
 println!("x   = {:?}", result.value_of(x)); // 6.0
 println!("y   = {:?}", result.value_of(y)); // 4.0
 # Ok::<(), Box<dyn std::error::Error>>(())
-```
-
-## Features
-
-| Feature  | What it adds                                                          | Default |
-|----------|-----------------------------------------------------------------------|---------|
-| `highs`  | HiGHS - LP/MILP/QP solver (bundled, no install)                       | yes     |
-| `io`     | MPS and LP file writers                                               | yes     |
-| `gurobi` | Gurobi - LP/MILP/QP/MIQP/NLP/MINLP solver (requires licensed install) | no      |
-| `gams`   | GAMS bridge - LP/MILP/QP/MIQP/NLP/MINLP depending on solver           | no      |
-| `baron`  | BARON  - LP/MILP/QP/MIQP/NLP/MINLP solver (requires licensed install) | no      |
-
-```toml
-[dependencies]
-oximo = "0.1"                                      # HiGHS + MPS/LP writers
-oximo = { version = "0.1", features = ["gurobi"] } # add Gurobi
-oximo = { version = "0.1", features = ["gams"] }   # add GAMS backend
-oximo = { version = "0.1", features = ["baron"] }  # add BARON backend
 ```
 
 ## Building models
@@ -272,17 +257,17 @@ let rc = result.reduced_costs.get(&x.id);
 
 ## Model export
 
-With the `io` feature (default):
+With the `io` feature (default), you can export models to MPS, LP and NL format for inspection or use with external solvers.
 
-```rust,ignore
-use oximo::io;
+## Features
 
-let mps = io::to_mps_string(&m)?;
-let lp  = io::to_lp_string(&m)?;
-
-io::write_mps(&m, "model.mps")?;
-io::write_lp(&m, "model.lp")?;
-```
+| Feature  | What it adds                                                          | Default |
+|----------|-----------------------------------------------------------------------|---------|
+| `highs`  | HiGHS - LP/MILP/QP solver (bundled, no install)                       | yes     |
+| `io`     | MPS and LP file writers                                               | yes     |
+| `gurobi` | Gurobi - LP/MILP/QP/MIQP/NLP/MINLP solver (requires licensed install) | no      |
+| `gams`   | GAMS bridge - LP/MILP/QP/MIQP/NLP/MINLP depending on solver           | no      |
+| `baron`  | BARON  - LP/MILP/QP/MIQP/NLP/MINLP solver (requires licensed install) | no      |
 
 ## Workspace layout
 
@@ -292,7 +277,7 @@ io::write_lp(&m, "model.lp")?;
 | `oximo-expr`   | Arena-allocated expression tree                       |
 | `oximo-core`   | `Model`, `Variable`, `Constraint`, `Objective`, `Set` |
 | `oximo-solver` | `Solver` trait, `SolverResult`, `SolverOptions`       |
-| `oximo-io`     | MPS and LP writers                                    |
+| `oximo-io`     | MPS, LP and NL writers                                |
 | `oximo-highs`  | HiGHS backend                                         |
 | `oximo-gurobi` | Gurobi backend                                        |
 | `oximo-gams`   | GAMS writer and backend                               |
