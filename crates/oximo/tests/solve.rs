@@ -19,6 +19,74 @@ fn lp_canonical() {
 }
 
 #[test]
+fn param_coefficient_lp_rebinds_without_rebuild() {
+    let m = Model::new("param_lp");
+    let price = m.param("price", 3.0);
+    let x = m.var("x").bounds(0.0, 10.0).build();
+    m.maximize(price * x);
+    assert_eq!(m.kind(), ModelKind::LP);
+
+    let r = Highs.solve(&m, &HighsOptions::default()).unwrap();
+    assert_eq!(r.status, SolverStatus::Optimal);
+    assert!((r.objective.unwrap() - 30.0).abs() < 1e-6);
+
+    m.set_param(price, 5.0);
+    let r2 = Highs.solve(&m, &HighsOptions::default()).unwrap();
+    assert!((r2.objective.unwrap() - 50.0).abs() < 1e-6);
+}
+
+#[test]
+fn param_coefficient_qp_rebinds() {
+    let m = Model::new("param_qp");
+    let t = m.param("t", 2.0);
+    let x = m.var("x").bounds(-10.0, 10.0).build();
+    m.minimize((x - t).powi(2));
+    assert_eq!(m.kind(), ModelKind::QP);
+
+    let r = Highs.solve(&m, &HighsOptions::default()).unwrap();
+    assert_eq!(r.status, SolverStatus::Optimal);
+    assert!((r.value_of(x).unwrap() - 2.0).abs() < 1e-5);
+
+    m.set_param(t, 4.0);
+    let r2 = Highs.solve(&m, &HighsOptions::default()).unwrap();
+    assert!((r2.value_of(x).unwrap() - 4.0).abs() < 1e-5);
+}
+
+#[cfg(feature = "io")]
+#[test]
+fn io_linear_writers_fold_param_coefficient() {
+    use oximo::io::{to_lp_string, to_mps_string};
+
+    let m = Model::new("io_param");
+    let cost = m.param("cost", 3.0);
+    let x = m.var("x").lb(0.0).build();
+    m.constraint("c", x.ge(2.0));
+    m.minimize(cost * x);
+
+    let mps = to_mps_string(&m).unwrap();
+    assert!(mps.contains("x         OBJ       3"), "got:\n{mps}");
+    assert!(to_lp_string(&m).is_ok());
+
+    m.set_param(cost, 5.0);
+    let mps2 = to_mps_string(&m).unwrap();
+    assert!(mps2.contains("x         OBJ       5"), "got:\n{mps2}");
+}
+
+#[cfg(feature = "io")]
+#[test]
+fn nl_writer_emits_param_in_nonlinear_term() {
+    use oximo::io::to_nl_string;
+
+    let m = Model::new("nl_param");
+    let k = m.param("k", 2.0);
+    let x = m.var("x").lb(0.0).build();
+    m.constraint("c", (k * x.powi(2)).le(10.0));
+    m.minimize(x);
+    let nl = to_nl_string(&m).unwrap();
+    assert!(!nl.is_empty());
+}
+
+#[test]
 fn knapsack_milp() {
     let weights = [3.0, 4.0, 2.0, 5.0, 1.0, 6.0, 7.0, 2.0];
     let values = [10.0, 12.0, 5.0, 14.0, 3.0, 18.0, 22.0, 6.0];
