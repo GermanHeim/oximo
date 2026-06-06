@@ -205,4 +205,34 @@ mod tests {
         let m = a.push(ExprNode::Mul(smallvec![c, x]));
         assert_eq!(classify(&a, m), ExprClass::Linear);
     }
+
+    #[test]
+    fn param_alone_is_linear() {
+        let mut a = ExprArena::new();
+        let p = a.new_param(4.0);
+        let pn = a.param(p);
+        assert_eq!(classify(&a, pn), ExprClass::Linear);
+    }
+
+    #[test]
+    fn param_times_var_is_linear() {
+        let mut a = ExprArena::new();
+        let p = a.new_param(4.0);
+        let pn = a.param(p);
+        let x = var(&mut a, 0);
+        let m = a.push(ExprNode::Mul(smallvec![pn, x]));
+        assert_eq!(classify(&a, m), ExprClass::Linear);
+    }
+
+    #[test]
+    fn param_times_var_squared_is_quadratic() {
+        let mut a = ExprArena::new();
+        let p = a.new_param(4.0);
+        let pn = a.param(p);
+        let x = var(&mut a, 0);
+        let two = a.push(ExprNode::Const(2.0));
+        let sq = a.push(ExprNode::Pow(x, two));
+        let m = a.push(ExprNode::Mul(smallvec![pn, sq]));
+        assert_eq!(classify(&a, m), ExprClass::Quadratic);
+    }
 }
