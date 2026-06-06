@@ -28,9 +28,8 @@ const BAR_NAME: &str = "problem.bar";
 /// # Errors
 ///
 /// Returns [`SolverError`] on constructs BARON's `.bar` format cannot represent
-/// (`sin`/`cos`, symbolic parameters, semicontinuous/semi-integer variables), a
-/// missing BARON executable, a BARON run that produced no times file, or I/O
-/// failures.
+/// (`sin`/`cos`, semicontinuous/semi-integer variables), a missing BARON
+/// executable, a BARON run that produced no times file, or I/O failures.
 ///
 /// # Panics
 ///
@@ -364,11 +363,7 @@ fn write_bar_expr(bar: &mut String, arena: &ExprArena, id: ExprId) -> Result<(),
     match arena.get(id) {
         ExprNode::Const(c) => write!(bar, "{}", fmt(*c)).unwrap(),
         ExprNode::Var(v) => write!(bar, "x{}", v.index()).unwrap(),
-        ExprNode::Param(_) => {
-            return Err(SolverError::Backend(
-                "BARON backend does not support symbolic parameters".into(),
-            ));
-        }
+        ExprNode::Param(p) => write!(bar, "{}", fmt(arena.param_value(*p))).unwrap(),
         ExprNode::Linear { coeffs, constant } => {
             let t = LinearTerms { coeffs: coeffs.clone(), constant: *constant };
             write!(bar, "(").unwrap();
