@@ -2,9 +2,7 @@
 
 Core modeling types for [oximo](https://github.com/germanheim/oximo): `Model`, `Variable`, `Set`, `Constraint`, `Objective`, `Parameter`, `IndexedVar`, `Domain`, and `ModelKind`.
 
-Re-exports `oximo-expr` types (`Expr`, `ExprArena`, `ExprId`, `ExprNode`, `ParamId`, `VarId`) so downstream code does not need a separate `oximo-expr` import.
-
-End users typically depend on the umbrella `oximo` crate rather than this one directly.
+Re-exports `oximo-expr` types (`Expr`, `ExprArena`, `ExprId`, `ExprNode`, `ParamId`, `VarId`) so downstream code does not need a separate `oximo-expr` import. End users typically depend on the umbrella `oximo` crate rather than this one directly.
 
 ## Usage
 
@@ -172,14 +170,14 @@ m.maximize(revenue_expr);
 
 Inferred automatically from variables and expressions, cached and invalidated on change:
 
-| Kind    | Conditions                                       |
-|---------|--------------------------------------------------|
-| `LP`    | All continuous, all linear                       |
-| `MILP`  | Any integer/binary, all linear                   |
-| `QP`    | All continuous, `Mul` with ≥2 non-const children |
-| `MIQP`  | Any integer/binary + quadratic                   |
-| `NLP`   | All continuous, `Pow`/`Sin`/`Cos`/`Exp`/`Log`    |
-| `MINLP` | Any integer/binary + nonlinear                   |
+| Kind    | Conditions                                          |
+|---------|-----------------------------------------------------|
+| `LP`    | All continuous, all linear                          |
+| `MILP`  | Any integer/binary, all linear                      |
+| `QP`    | All continuous, `Mul` with >=2 non-const children   |
+| `MIQP`  | Any integer/binary + quadratic                      |
+| `NLP`   | All continuous, `Pow`/`Sin`/`Cos`/`Exp`/`Log`/`Abs` |
+| `MINLP` | Any integer/binary + nonlinear                      |
 
 ## License
 
