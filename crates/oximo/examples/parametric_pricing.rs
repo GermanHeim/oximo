@@ -12,7 +12,7 @@
 //! tracks the latest binding.
 //!
 //! References:
-//! - Dantzig, G. B. (1998). Linear Programming and Extensions. 
+//! - Dantzig, G. B. (1998). Linear Programming and Extensions.
 //!   Princeton, NJ: Princeton University Press.
 //! - Hillier F. S., & Lieberman G. J. (2010). Introduction to Operations Research.
 //!   New York, NY: McGraw-Hill Higher Education.
