@@ -84,7 +84,8 @@ pub fn write_nl_with<W: Write>(
     let objective = model.try_objective().map_err(|_| IoError::NoObjective)?;
 
     let arena = model.arena();
-    let analysis = analyze::Analysis::build(&arena, &vars, &constraints, &objective)?;
+    let analysis =
+        analyze::Analysis::build(&arena, &vars, &constraints, &objective, opts.nonfinite_strings)?;
     let perm = permute::Permutation::build(&vars, &analysis);
     let stats = header::Stats::build(&vars, &constraints, &analysis, &perm, opts);
 
@@ -142,18 +143,19 @@ pub fn write_nl_files(model: &Model, stub: &Path, opts: &WriteOptions) -> Result
         write_nl_with(model, &mut f, opts)?;
     }
     if opts.aux_files.is_some() {
-        write_aux_files(model, stub)?;
+        write_aux_files(model, stub, opts.nonfinite_strings)?;
     }
     Ok(())
 }
 
-fn write_aux_files(model: &Model, stub: &Path) -> Result<(), IoError> {
+fn write_aux_files(model: &Model, stub: &Path, nonfinite_strings: bool) -> Result<(), IoError> {
     let vars = model.variables();
     let constraints = model.constraints();
     let objective = model.try_objective().map_err(|_| IoError::NoObjective)?;
 
     let arena = model.arena();
-    let analysis = analyze::Analysis::build(&arena, &vars, &constraints, &objective)?;
+    let analysis =
+        analyze::Analysis::build(&arena, &vars, &constraints, &objective, nonfinite_strings)?;
     let perm = permute::Permutation::build(&vars, &analysis);
 
     let row_path = stub.with_extension("row");

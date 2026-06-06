@@ -49,6 +49,7 @@ impl Analysis {
         _vars: &[Variable],
         constraints: &[Constraint],
         objective: &Objective,
+        nonfinite_strings: bool,
     ) -> Result<Self, IoError> {
         let mut nl_vars_c: FxHashSet<VarId> = FxHashSet::default();
         let mut nl_vars_o: FxHashSet<VarId> = FxHashSet::default();
@@ -64,7 +65,7 @@ impl Analysis {
             if !residual.is_empty() {
                 let mut nl_set: FxHashSet<VarId> = FxHashSet::default();
                 for r in &residual {
-                    validate(arena, r.id)?;
+                    validate(arena, r.id, nonfinite_strings)?;
                     collect_vars(arena, r.id, &mut nl_set)?;
                 }
                 for v in &nl_set {
@@ -84,7 +85,7 @@ impl Analysis {
         if !obj_residual.is_empty() {
             let mut nl_set: FxHashSet<VarId> = FxHashSet::default();
             for r in &obj_residual {
-                validate(arena, r.id)?;
+                validate(arena, r.id, nonfinite_strings)?;
                 collect_vars(arena, r.id, &mut nl_set)?;
             }
             for v in &nl_set {
@@ -104,10 +105,14 @@ fn sorted(set: FxHashSet<VarId>) -> Vec<VarId> {
     v
 }
 
-fn validate(arena: &ExprArena, id: ExprId) -> Result<(), IoError> {
+/// Walk a nonlinear residual, rejecting nodes the writer cannot emit. Non-finite
+/// constants are an error only when `nonfinite_strings` is off. When on, the
+/// writer emits them as `Infinity`/`NaN`, so they are allowed through this function
+/// to keep `WriteOptions::nonfinite_strings` effective for expression constants.
+fn validate(arena: &ExprArena, id: ExprId, nonfinite_strings: bool) -> Result<(), IoError> {
     match arena.get(id) {
         ExprNode::Const(c) => {
-            if !c.is_finite() {
+            if !nonfinite_strings && !c.is_finite() {
                 return Err(IoError::InvalidNumber);
             }
             Ok(())
@@ -119,23 +124,23 @@ fn validate(arena: &ExprArena, id: ExprId) -> Result<(), IoError> {
         | ExprNode::Cos(x)
         | ExprNode::Exp(x)
         | ExprNode::Log(x)
-        | ExprNode::Abs(x) => validate(arena, *x),
+        | ExprNode::Abs(x) => validate(arena, *x, nonfinite_strings),
         ExprNode::Pow(b, e) => {
-            validate(arena, *b)?;
-            validate(arena, *e)
+            validate(arena, *b, nonfinite_strings)?;
+            validate(arena, *e, nonfinite_strings)
         }
         ExprNode::Add(children) | ExprNode::Mul(children) => {
             for c in children {
-                validate(arena, *c)?;
+                validate(arena, *c, nonfinite_strings)?;
             }
             Ok(())
         }
         ExprNode::Div(num, den) => {
-            validate(arena, *num)?;
-            validate(arena, *den)
+            validate(arena, *num, nonfinite_strings)?;
+            validate(arena, *den, nonfinite_strings)
         }
         ExprNode::Linear { coeffs: _, constant } => {
-            if !constant.is_finite() {
+            if !nonfinite_strings && !constant.is_finite() {
                 return Err(IoError::InvalidNumber);
             }
             Ok(())
