@@ -75,6 +75,23 @@ fn binary_header_marker() {
 }
 
 #[test]
+fn binary_ignores_comments() {
+    // `comments` is ASCII-only. In binary mode it must be ignored, so
+    // comments=true and comments=false produce byte-identical output.
+    let m = simple_lp();
+    let mut with_comments = Vec::new();
+    write_nl_with(
+        &m,
+        &mut with_comments,
+        &WriteOptions { format: NlFormat::Binary, comments: true, ..Default::default() },
+    )
+    .expect("binary");
+    let mut without_comments = Vec::new();
+    write_nl_with(&m, &mut without_comments, &WriteOptions::binary()).expect("binary");
+    assert_eq!(with_comments, without_comments, "comments must not affect binary output");
+}
+
+#[test]
 fn binary_to_string_errors() {
     // Binary output is not UTF-8, so the string helper refuses it instead of
     // panicking; binary callers must use the byte-sink `write_nl_with`.
