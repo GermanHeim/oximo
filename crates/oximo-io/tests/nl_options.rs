@@ -65,6 +65,23 @@ fn nonfinite_strings() {
 }
 
 #[test]
+fn nonfinite_constant_in_residual() {
+    let m = Model::new("nf_res");
+    let x = m.var("x").build();
+    m.minimize(f64::INFINITY * x.sin());
+    m.constraint("c0", x.ge(0.0));
+
+    assert!(
+        matches!(to_nl_string_with(&m, &WriteOptions::default()), Err(IoError::InvalidNumber)),
+        "default strict mode must reject the non-finite constant"
+    );
+
+    let opts = WriteOptions { nonfinite_strings: true, ..Default::default() };
+    let s = to_nl_string_with(&m, &opts).expect("nonfinite ok");
+    assert!(s.contains("Infinity"), "expected Infinity constant in:\n{s}");
+}
+
+#[test]
 fn binary_header_marker() {
     let m = simple_lp();
     let mut buf = Vec::new();
