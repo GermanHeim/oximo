@@ -164,10 +164,11 @@ fn as_aux_var(lowered: LoweredExpr, ctx: &mut LoweringCtx<'_>) -> Result<Var, So
     }
 }
 
-/// True if `id` is a literal constant, returns the value if so.
+/// True if `id` is a literal constant or a parameter, returns the value if so.
 fn as_const(arena: &ExprArena, id: ExprId) -> Option<f64> {
     match arena.get(id) {
         ExprNode::Const(c) => Some(*c),
+        ExprNode::Param(p) => Some(arena.param_value(*p)),
         _ => None,
     }
 }
@@ -180,9 +181,7 @@ pub(crate) fn lower(
     match arena.get(id) {
         ExprNode::Const(c) => Ok(LoweredExpr::Linear(linear_constant(*c))),
         ExprNode::Var(v) => Ok(LoweredExpr::Linear(linear_from_var(grb_var(ctx, *v)))),
-        ExprNode::Param(_) => Err(SolverError::Backend(
-            "Param nodes are not supported by oximo-gurobi nonlinear lowering".into(),
-        )),
+        ExprNode::Param(p) => Ok(LoweredExpr::Linear(linear_constant(arena.param_value(*p)))),
         ExprNode::Linear { coeffs, constant } => {
             let mut e = linear_constant(*constant);
             for (v, c) in coeffs {
