@@ -13,7 +13,7 @@ fn lp_canonical() {
 
     let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
-    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.objective().unwrap() - 34.0).abs() < 1e-6);
     assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
     assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
 }
@@ -28,11 +28,11 @@ fn param_coefficient_lp_rebinds_without_rebuild() {
 
     let r = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(r.status, SolverStatus::Optimal);
-    assert!((r.objective.unwrap() - 30.0).abs() < 1e-6);
+    assert!((r.objective().unwrap() - 30.0).abs() < 1e-6);
 
     m.set_param(price, 5.0);
     let r2 = Highs.solve(&m, &HighsOptions::default()).unwrap();
-    assert!((r2.objective.unwrap() - 50.0).abs() < 1e-6);
+    assert!((r2.objective().unwrap() - 50.0).abs() < 1e-6);
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn lp_initial_values_do_not_affect_optimum() {
 
     let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
-    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.objective().unwrap() - 34.0).abs() < 1e-6);
     assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
     assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
 }
@@ -135,7 +135,7 @@ fn milp_warm_start_finds_optimum() {
 
     let result = Highs.solve(&m, &HighsOptions::default()).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
-    assert!((result.objective.unwrap() - 47.0).abs() < 1e-6);
+    assert!((result.objective().unwrap() - 47.0).abs() < 1e-6);
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn presolve_off_gives_correct_result() {
     m.maximize(3.0 * x + 4.0 * y);
     let result = Highs.solve(&m, &HighsOptions::default().presolve(HighsPresolve::Off)).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
-    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.objective().unwrap() - 34.0).abs() < 1e-6);
     assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
     assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
 }
@@ -175,7 +175,7 @@ fn ipm_method_gives_correct_result() {
     m.maximize(3.0 * x + 4.0 * y);
     let result = Highs.solve(&m, &HighsOptions::default().method(HighsMethod::Ipm)).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
-    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.objective().unwrap() - 34.0).abs() < 1e-6);
     assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
     assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
 }
@@ -191,7 +191,7 @@ fn threads_one_gives_correct_result() {
     m.maximize(3.0 * x + 4.0 * y);
     let result = Highs.solve(&m, &HighsOptions::default().threads(1)).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
-    assert!((result.objective.unwrap() - 34.0).abs() < 1e-6);
+    assert!((result.objective().unwrap() - 34.0).abs() < 1e-6);
     assert!((result.value_of(x).unwrap() - 6.0).abs() < 1e-6);
     assert!((result.value_of(y).unwrap() - 4.0).abs() < 1e-6);
 }
@@ -212,7 +212,7 @@ fn mip_gap_accepted_and_solves() {
         "unexpected status: {:?}",
         result.status
     );
-    assert!(result.objective.unwrap() > 0.0);
+    assert!(result.objective().unwrap() > 0.0);
 }
 
 #[test]
