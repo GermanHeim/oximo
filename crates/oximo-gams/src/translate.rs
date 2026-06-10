@@ -1,4 +1,5 @@
 use std::fmt::Write as FmtWrite;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -11,7 +12,7 @@ use oximo_core::{
     Variable,
 };
 use oximo_expr::{ExprArena, ExprId, ExprNode, LinearTerms, extract_linear};
-use oximo_solver::{SolverError, SolverResult, SolverStatus};
+use oximo_solver::{SolutionPoint, SolverError, SolverResult, SolverStatus};
 use rustc_hash::FxHashMap;
 
 use crate::GamsOptions;
@@ -43,8 +44,9 @@ pub fn solve(
     let vars = model.variables();
     let constraints = model.constraints();
     let objective = model.try_objective().map_err(SolverError::Core)?;
+    let sense = objective.sense;
 
-    let sense_kw = match objective.sense {
+    let sense_kw = match sense {
         ObjectiveSense::Minimize => "minimizing",
         ObjectiveSense::Maximize => "maximizing",
     };
@@ -164,7 +166,17 @@ pub fn solve(
     let result = if sol_path.exists() {
         let content = fs::read_to_string(&sol_path)
             .map_err(|e| SolverError::Backend(format!("cannot read solution file: {e}")))?;
-        parseoximo_solution(&content, elapsed, raw_log)
+        let mut result = parseoximo_solution(&content, elapsed, raw_log);
+        // If a sub-solver wrote a solution pool (e.g. CPLEX `solnpool`), surface
+        // every pooled point. The model itself emits no GDX, so any pool GDX in
+        // the run directory came from the user's option file.
+        if result.status.has_solution() {
+            let pool = read_solution_pool(&tmp_dir, gams_exec, sense);
+            if !pool.is_empty() {
+                result.solutions = pool;
+            }
+        }
+        result
     } else {
         // No solution file. GAMS must have failed before the Solve statement
         // (compilation error, license error, etc.).  Fall back to the listing.
@@ -275,9 +287,12 @@ fn parseoximo_solution(
     let status = map_status(modelstat.unwrap_or(13), solvestat.unwrap_or(0));
     let has_sol = status.has_solution();
 
+    // The PUT solution file holds only the incumbent. `solve` augments this with
+    // a sub-solver solution pool (if one was written) read from the run dir's GDX.
+    let solutions =
+        if has_sol { vec![SolutionPoint { primal, objective: obj_val }] } else { Vec::new() };
     SolverResult {
-        objective: if has_sol { obj_val } else { None },
-        primal: if has_sol { primal } else { FxHashMap::default() },
+        solutions,
         dual: if has_sol { dual } else { FxHashMap::default() },
         reduced_costs: if has_sol { reduced_costs } else { FxHashMap::default() },
         status,
@@ -285,6 +300,100 @@ fn parseoximo_solution(
         iterations: 0,
         raw_log,
     }
+}
+
+/// Read a sub-solver solution pool from the GAMS run directory.
+///
+/// A sub-solver `solnpool` option (CPLEX/Gurobi/Xpress) writes each alternative
+/// solution to its own GDX file plus an index GDX. oximo's generated model emits
+/// no GDX of its own, so every `*.gdx` in `tmp_dir` belongs to the pool. Each is
+/// dumped with `gdxdump` and parsed for the model's `v{i}` variable levels.
+///
+/// Returns the points best-first by `sense`, empty when no pool was written.
+fn read_solution_pool(tmp_dir: &Path, gams_exec: &str, sense: ObjectiveSense) -> Vec<SolutionPoint> {
+    let gdxdump = gdxdump_path(gams_exec);
+    let Ok(entries) = fs::read_dir(tmp_dir) else {
+        return Vec::new();
+    };
+    let mut members: Vec<SolutionPoint> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("gdx") {
+            continue;
+        }
+        let Ok(out) = std::process::Command::new(&gdxdump).arg(&path).output() else {
+            continue;
+        };
+        if !out.status.success() {
+            continue;
+        }
+        let dump = String::from_utf8_lossy(&out.stdout);
+        if let Some(pt) = parse_pool_member(&dump) {
+            members.push(pt);
+        }
+    }
+    members.sort_by(|a, b| {
+        let ord = match sense {
+            ObjectiveSense::Maximize => b.objective.partial_cmp(&a.objective),
+            ObjectiveSense::Minimize => a.objective.partial_cmp(&b.objective),
+        };
+        ord.unwrap_or(std::cmp::Ordering::Equal)
+    });
+    members
+}
+
+/// `gdxdump` lives beside the `gams` executable. 
+/// Fall back to `PATH` when only a bare command name is known.
+fn gdxdump_path(gams_exec: &str) -> PathBuf {
+    let exe = if cfg!(windows) { "gdxdump.exe" } else { "gdxdump" };
+    match Path::new(gams_exec).parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join(exe),
+        _ => PathBuf::from("gdxdump"),
+    }
+}
+
+/// Parse one pool member's `gdxdump` text into a [`SolutionPoint`].
+///
+/// Each model variable is dumped as `<type> Variable v{i} /L <level> /;` (or an
+/// empty record `/ /` for a default-zero level). The objective variable `v_obj`
+/// carries the point's objective. Returns `None` for a GDX with no `v{i}`
+/// symbols (e.g. the pool index file).
+fn parse_pool_member(dump: &str) -> Option<SolutionPoint> {
+    let mut primal: FxHashMap<VarId, f64> = FxHashMap::default();
+    let mut objective: Option<f64> = None;
+    for line in dump.lines() {
+        let Some(pos) = line.find("Variable ") else {
+            continue;
+        };
+        let rest = &line[pos + "Variable ".len()..];
+        let name_end = rest.find(|c: char| c.is_whitespace() || c == '/').unwrap_or(rest.len());
+        let name = &rest[..name_end];
+        if name == "v_obj" {
+            objective = Some(parse_gdx_level(line));
+        } else if let Some(idx) = name.strip_prefix('v').and_then(|d| d.parse::<u32>().ok()) {
+            primal.insert(VarId(idx), parse_gdx_level(line));
+        }
+    }
+    if primal.is_empty() { None } else { Some(SolutionPoint { primal, objective }) }
+}
+
+/// Extract the `L` (level) field from a `gdxdump` variable record line, e.g.
+/// `binary Variable v0 /L 1 /;` -> `1.0`. An empty record (`/ /`) or a missing
+/// `L` field means the default level of `0.0`.
+fn parse_gdx_level(line: &str) -> f64 {
+    let (Some(start), Some(end)) = (line.find('/'), line.rfind('/')) else {
+        return 0.0;
+    };
+    if end <= start {
+        return 0.0;
+    }
+    let mut tokens = line[start + 1..end].split_whitespace();
+    while let Some(tok) = tokens.next() {
+        if tok == "L" {
+            return tokens.next().map_or(0.0, |v| v.trim_end_matches(',').parse().unwrap_or(0.0));
+        }
+    }
+    0.0
 }
 
 /// Map GAMS model-status to `SolverStatus`.
