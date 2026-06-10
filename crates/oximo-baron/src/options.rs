@@ -407,6 +407,13 @@ mod tests {
     }
 
     #[test]
+    fn solution_pool_does_not_override_user_verbosity() {
+        let bar = render(&BaronOptions::default().num_sol(5).verbose(false));
+        assert!(bar.contains("PrLevel: 0;"), "{bar}");
+        assert!(!bar.contains("PrLevel: 1;"), "{bar}");
+    }
+
+    #[test]
     fn newly_added_options_emit_correctly() {
         let o = BaronOptions::default()
             .target(1.5)

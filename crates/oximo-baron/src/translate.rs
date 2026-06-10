@@ -6,7 +6,7 @@ use std::{fs, io};
 
 use oximo_core::{Constraint, Domain, Model, Objective, ObjectiveSense, Sense, VarId, Variable};
 use oximo_expr::{ExprArena, ExprId, ExprNode, LinearTerms, extract_linear};
-use oximo_solver::{SolverError, SolverResult, SolverStatus};
+use oximo_solver::{SolutionPoint, SolverError, SolverResult, SolverStatus};
 use rustc_hash::FxHashMap;
 
 use crate::BaronOptions;
@@ -40,7 +40,7 @@ pub fn solve(
     exec: Option<&str>,
 ) -> Result<SolverResult, SolverError> {
     let sense = model.objective().as_ref().map_or(ObjectiveSense::Minimize, |o| o.sense);
-    let bar = build_bar(model, opts)?;
+    let (bar, var_order) = build_bar(model, opts)?;
 
     // - Temp directory. Combine a timestamp with a per-process atomic counter so
     //   concurrent invocations never share a directory.
@@ -118,14 +118,16 @@ pub fn solve(
     let tim = fs::read_to_string(&tim_path)
         .map_err(|e| SolverError::Backend(format!("cannot read times file: {e}")))?;
     let res = fs::read_to_string(tmp_dir.join(RES_NAME)).unwrap_or_default();
-    let result = parse_solution(&tim, &res, sense, elapsed, raw_log);
+    let result = parse_solution(&tim, &res, sense, elapsed, raw_log, &var_order);
 
     let _ = fs::remove_dir_all(&tmp_dir);
     Ok(result)
 }
 
-/// Build the full `.bar` file text for `model`.
-fn build_bar(model: &Model, opts: &BaronOptions) -> Result<String, SolverError> {
+/// Build the full `.bar` file text for `model`, returning it alongside the
+/// variable declaration order (see [`write_var_declarations`]) used to decode
+/// BARON's numeric solution-pool blocks.
+fn build_bar(model: &Model, opts: &BaronOptions) -> Result<(String, Vec<VarId>), SolverError> {
     let arena = model.arena();
     let vars = model.variables();
     let constraints = model.constraints();
@@ -133,19 +135,24 @@ fn build_bar(model: &Model, opts: &BaronOptions) -> Result<String, SolverError> 
 
     let mut bar = String::with_capacity(4096);
     write_options(&mut bar, opts, RES_NAME, TIM_NAME);
-    write_var_declarations(&mut bar, &vars)?;
+    let var_order = write_var_declarations(&mut bar, &vars)?;
     write_bounds(&mut bar, &vars);
     write_equations(&mut bar, &arena, &constraints)?;
     write_objective(&mut bar, &arena, objective.as_ref())?;
     write_starting_point(&mut bar, &vars);
-    Ok(bar)
+    Ok((bar, var_order))
 }
 
 // - .bar writers
 
 /// Emit the `BINARY_VARIABLES` / `INTEGER_VARIABLES` / `POSITIVE_VARIABLES` /
 /// `VARIABLES` declaration sections.
-fn write_var_declarations(bar: &mut String, vars: &[Variable]) -> Result<(), SolverError> {
+///
+/// Returns the variable `VarId`s in the order they are declared (binary,
+/// integer, positive, free). BARON numbers variables 1-based in this order, so
+/// the result maps "Variable no. `k`" back to a `VarId` when parsing the
+/// enumerated solution pool.
+fn write_var_declarations(bar: &mut String, vars: &[Variable]) -> Result<Vec<VarId>, SolverError> {
     let (mut bin, mut int, mut pos, mut free) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for v in vars {
         match v.domain {
@@ -170,7 +177,8 @@ fn write_var_declarations(bar: &mut String, vars: &[Variable]) -> Result<(), Sol
     write_var_section(bar, "POSITIVE_VARIABLES", &pos);
     write_var_section(bar, "VARIABLES", &free);
     writeln!(bar).unwrap();
-    Ok(())
+    let order = bin.iter().chain(&int).chain(&pos).chain(&free).map(|v| v.id).collect();
+    Ok(order)
 }
 
 fn write_var_section(bar: &mut String, header: &str, vars: &[&Variable]) {
@@ -505,6 +513,7 @@ fn parse_solution(
     sense: ObjectiveSense,
     elapsed: std::time::Duration,
     raw_log: Option<String>,
+    var_order: &[VarId],
 ) -> SolverResult {
     let tokens: Vec<&str> = tim.split_whitespace().collect();
     let int_at = |i: usize| tokens.get(i).and_then(|s| s.parse::<i64>().ok());
@@ -527,14 +536,21 @@ fn parse_solution(
         ObjectiveSense::Maximize => lower,
     };
 
-    let mut primal: FxHashMap<VarId, f64> = FxHashMap::default();
-    if has_sol && nodeopt != Some(-3) {
-        parse_results(res, &mut primal);
+    let mut solutions = if has_sol && nodeopt != Some(-3) {
+        parse_results(res, var_order, sense)
+    } else {
+        Vec::new()
+    };
+
+    // BARON prints each solution's exact objective. Only when the status says a
+    // solution exists but no primal block was parsed do we fall back to the times
+    // file so `result_count` still reflects that a solution exists.
+    if has_sol && solutions.is_empty() {
+        solutions.push(SolutionPoint { primal: FxHashMap::default(), objective });
     }
 
     SolverResult {
-        objective: if has_sol { objective } else { None },
-        primal: if has_sol { primal } else { FxHashMap::default() },
+        solutions,
         dual: FxHashMap::default(),
         reduced_costs: FxHashMap::default(),
         status,
@@ -571,39 +587,119 @@ fn map_status(solver_status: i64, model_status: i64) -> SolverStatus {
     }
 }
 
-/// Extract the primal solution from BARON's results file.
+/// Parse the primal solutions from BARON's results file (`res.lst`), best first.
 ///
-/// The variable block follows a `"The best solution found"` header (then two
-/// lines). Each entry line is `name <bound> value ...`; we recover the `VarId`
-/// from the digits in the synthetic `x{i}` name and read the value from the
-/// third whitespace column.
-fn parse_results(res: &str, primal: &mut FxHashMap<VarId, f64>) {
-    let mut lines = res.lines();
-    let mut found = false;
-    for line in lines.by_ref() {
-        if line.trim_start().starts_with("The best solution found") {
-            found = true;
+/// When BARON enumerates a pool (`NumSol > 1`) it prints the distinct points
+/// after `*** Normal completion ***` as numeric blocks (see
+/// [`parse_solution_pool`]). Each has its own objective, but in the order it
+/// found them. We need to sort the pool by objective per the
+/// optimization `sense`, so index `0` is the incumbent.
+fn parse_results(res: &str, var_order: &[VarId], sense: ObjectiveSense) -> Vec<SolutionPoint> {
+    let mut pool = parse_solution_pool(res, var_order);
+    if pool.is_empty() {
+        return parse_best_table(res).into_iter().collect();
+    }
+    pool.sort_by(|a, b| {
+        let ord = match sense {
+            ObjectiveSense::Maximize => b.objective.partial_cmp(&a.objective),
+            ObjectiveSense::Minimize => a.objective.partial_cmp(&b.objective),
+        };
+        ord.unwrap_or(std::cmp::Ordering::Equal)
+    });
+    pool
+}
+
+/// Parse the enumerated solution pool BARON prints after
+/// `*** Normal completion ***`:
+///
+/// ```text
+///  >>> Objective value is:        <obj>
+///  >>> Corresponding solution vector is:
+///  >>> Variable no.       Value
+///  >>>      1             <v1>
+///  >>>      2             <v2>
+/// ```
+///
+/// one block per distinct point, best first. Variable numbers are 1-based
+/// positions in the `.bar` declaration order, so `var_order[k - 1]` is the
+/// `VarId` for "Variable no. `k`". Only the post-completion region is scanned.
+///
+/// Returns empty when BARON printed no pool (e.g. a time-limited run).
+fn parse_solution_pool(res: &str, var_order: &[VarId]) -> Vec<SolutionPoint> {
+    let Some(pos) = res.find("Normal completion") else {
+        return Vec::new();
+    };
+    let strip = |l: &str| l.trim_start().trim_start_matches(">>>").trim().to_string();
+
+    let mut out: Vec<SolutionPoint> = Vec::new();
+    let mut last_obj: Option<f64> = None;
+    let mut lines = res[pos..].lines().peekable();
+
+    while let Some(line) = lines.next() {
+        let t = strip(line);
+        if t.starts_with("Objective value is") {
+            last_obj = t.rsplit(':').next().and_then(parse_baron_float);
+        } else if t.starts_with("Corresponding dual solution")
+            || t.starts_with("The best solution found")
+        {
             break;
+        } else if t.starts_with("Corresponding solution vector") {
+            let mut primal: FxHashMap<VarId, f64> = FxHashMap::default();
+            while let Some(peek) = lines.peek() {
+                let p = strip(peek);
+                if p.is_empty()
+                    || p.starts_with("Objective value is")
+                    || p.starts_with("Corresponding")
+                    || p.starts_with("The best solution found")
+                {
+                    break;
+                }
+                lines.next();
+                let parts: Vec<&str> = p.split_whitespace().collect();
+                if let (Some(k), Some(val)) = (
+                    parts.first().and_then(|s| s.parse::<usize>().ok()),
+                    parts.get(1).and_then(|s| parse_baron_float(s)),
+                ) {
+                    if (1..=var_order.len()).contains(&k) {
+                        primal.insert(var_order[k - 1], val);
+                    }
+                }
+            }
+            if !primal.is_empty() {
+                out.push(SolutionPoint { primal, objective: last_obj });
+            }
         }
     }
-    if !found {
-        return;
-    }
-    // Skip the two header lines between the banner and the variable rows.
-    lines.next();
-    lines.next();
-    for line in lines {
-        if line.trim().is_empty() {
+    out
+}
+
+/// Parse the single `"The best solution found is:"` table: rows of
+/// `x{VarId} xlo xbest xup`, with the value in the third whitespace column and a
+/// trailing `"... objective value of: X"` line. Returns `None` when the banner
+/// is absent.
+fn parse_best_table(res: &str) -> Option<SolutionPoint> {
+    let pos = res.find("The best solution found")?;
+    let mut primal: FxHashMap<VarId, f64> = FxHashMap::default();
+    let mut objective = None;
+    let mut started = false;
+    for line in res[pos..].lines().skip(1) {
+        if line.contains("objective value of") {
+            objective = line.split_whitespace().last().and_then(parse_baron_float);
             break;
         }
         let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 3 {
-            continue;
+        if let (Some(&p0), Some(&p2)) = (parts.first(), parts.get(2)) {
+            if let (Some(idx), Some(val)) = (extract_index(p0), parse_baron_float(p2)) {
+                primal.insert(VarId(idx), val);
+                started = true;
+                continue;
+            }
         }
-        if let (Some(idx), Some(val)) = (extract_index(parts[0]), parse_baron_float(parts[2])) {
-            primal.insert(VarId(idx), val);
+        if started {
+            break;
         }
     }
+    (!primal.is_empty() || objective.is_some()).then_some(SolutionPoint { primal, objective })
 }
 
 /// Recover the variable index from a synthetic `x{i}` name by reading its digits.
@@ -613,13 +709,22 @@ fn extract_index(name: &str) -> Option<u32> {
     digits.parse().ok()
 }
 
-/// Parse a BARON-formatted float, tolerating its infinity sentinels.
+/// Parse a BARON-formatted float, tolerating its infinity sentinels and the
+/// leading-decimal-point form it prints for values in `(-1, 1)` (e.g. `-.9999`).
 fn parse_baron_float(s: &str) -> Option<f64> {
     match s.trim() {
         "" => None,
         "inf" | "Inf" | "+inf" | "+Inf" => Some(f64::INFINITY),
         "-inf" | "-Inf" => Some(f64::NEG_INFINITY),
-        other => other.parse().ok(),
+        other => {
+            if let Some(rest) = other.strip_prefix("-.") {
+                format!("-0.{rest}").parse().ok()
+            } else if let Some(rest) = other.strip_prefix('.') {
+                format!("0.{rest}").parse().ok()
+            } else {
+                other.parse().ok()
+            }
+        }
     }
 }
 
@@ -630,7 +735,7 @@ mod tests {
     use super::*;
 
     fn render(model: &Model) -> String {
-        build_bar(model, &BaronOptions::default()).expect("build_bar")
+        build_bar(model, &BaronOptions::default()).expect("build_bar").0
     }
 
     #[test]
@@ -835,37 +940,91 @@ mod tests {
     fn parse_tim_picks_objective_by_sense() {
         // name ncon nvar a b lower upper solver model c iters nodeopt ... wall
         let tim = "m 1 2 0 0 1.5 9.5 1 1 0 42 7 0 0 0.42";
-        let r = parse_solution(tim, "", ObjectiveSense::Minimize, std::time::Duration::ZERO, None);
+        let r =
+            parse_solution(tim, "", ObjectiveSense::Minimize, std::time::Duration::ZERO, None, &[]);
         assert_eq!(r.status, SolverStatus::Optimal);
-        assert_eq!(r.objective, Some(9.5)); // upper bound for minimize
+        assert_eq!(r.objective(), Some(9.5)); // upper bound for minimize
         assert_eq!(r.iterations, 42); // branch-and-reduce iterations from tim[10]
-        let r = parse_solution(tim, "", ObjectiveSense::Maximize, std::time::Duration::ZERO, None);
-        assert_eq!(r.objective, Some(1.5)); // lower bound for maximize
+        let r =
+            parse_solution(tim, "", ObjectiveSense::Maximize, std::time::Duration::ZERO, None, &[]);
+        assert_eq!(r.objective(), Some(1.5)); // lower bound for maximize
     }
 
     #[test]
     fn parse_res_extracts_primal() {
-        let mut primal = FxHashMap::default();
         let res = "\
 junk line
 The best solution found is:
 
-  name        lower        value
-  x0          0.0          1.25
-  x1          0.0          3.50
+  variable     xlo      xbest    xup
+  x0           0.0      1.25     10
+  x1           0.0      3.50     10
 
+The above solution has an objective value of:    0.0
 ";
-        parse_results(res, &mut primal);
-        assert_eq!(primal.get(&VarId(0)), Some(&1.25));
-        assert_eq!(primal.get(&VarId(1)), Some(&3.5));
+        let blocks = parse_results(res, &[VarId(0), VarId(1)], ObjectiveSense::Minimize);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].primal.get(&VarId(0)), Some(&1.25));
+        assert_eq!(blocks[0].primal.get(&VarId(1)), Some(&3.5));
+    }
+
+    #[test]
+    fn parse_res_extracts_multiple_solutions() {
+        let res = "\
+                         *** Normal completion ***
+
+ >>> Objective value is:           0.0000000000000000000000
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1             1.0000000010231691049967
+ >>>       2             1.0000000010231691049967
+
+ >>> Objective value is:           0.0000000000000000000000
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1            -.99999999996972754878755
+ >>>       2            0.99999999997690125486116
+
+ >>> Corresponding dual solution vector is:
+ >>> Variable no.              Marginal
+ >>>       1             0.0000000000000000000000
+
+The best solution found is:
+
+  variable     xlo      xbest                          xup
+  x0           -2       1.00000000102316910499667e+00  2
+  x1           -2       1.00000000102316910499667e+00  2
+
+The above solution has an objective value of:  0.0000000000000000000000
+";
+        let blocks = parse_results(res, &[VarId(0), VarId(1)], ObjectiveSense::Minimize);
+        assert_eq!(blocks.len(), 2, "expected two solution blocks: {blocks:?}");
+        assert!((blocks[0].primal[&VarId(0)] - 1.0).abs() < 1e-6);
+        assert!((blocks[0].primal[&VarId(1)] - 1.0).abs() < 1e-6);
+        assert!((blocks[1].primal[&VarId(0)] + 1.0).abs() < 1e-6);
+        assert!((blocks[1].primal[&VarId(1)] - 1.0).abs() < 1e-6);
+        assert_eq!(blocks[1].objective, Some(0.0));
     }
 
     #[test]
     fn no_solution_node_minus_three_leaves_primal_empty() {
-        // solver=1 model=1 (optimal) but nodeopt = -3 => no solution vector.
+        // solver=1 model=1 (optimal) but nodeopt = -3 => no solution vector. We
+        // still surface a single point (objective known, variables unavailable).
         let tim = "m 1 1 0 0 0 0 1 1 0 0 -3 0 0 0.01";
         let res = "The best solution found is:\n\n\n  x0  0  9.9\n";
-        let r = parse_solution(tim, res, ObjectiveSense::Minimize, std::time::Duration::ZERO, None);
-        assert!(r.primal.is_empty(), "nodeopt -3 must skip primal: {:?}", r.primal);
+        let r = parse_solution(
+            tim,
+            res,
+            ObjectiveSense::Minimize,
+            std::time::Duration::ZERO,
+            None,
+            &[VarId(0)],
+        );
+        assert_eq!(r.result_count(), 1);
+        assert!(
+            r.solution(0).unwrap().primal.is_empty(),
+            "nodeopt -3 must skip primal: {:?}",
+            r.solution(0)
+        );
     }
 }
