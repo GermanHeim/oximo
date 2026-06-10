@@ -62,7 +62,7 @@ m.maximize(dot(&xs, &values));
 
 let result = Gurobi.solve(&m, &GurobiOptions::default())?;
 println!("status = {:?}", result.status);
-println!("obj    = {:?}", result.objective);
+println!("obj    = {:?}", result.objective());
 ```
 
 Run the bundled example:
