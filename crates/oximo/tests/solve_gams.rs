@@ -14,7 +14,7 @@
 
 use std::time::Duration;
 
-use oximo::gams::{GamsHighsOptions, GamsHighsSolver, GamsSolverConfig};
+use oximo::gams::{GamsCplexOptions, GamsHighsOptions, GamsHighsSolver, GamsSolverConfig};
 use oximo::prelude::*;
 use oximo::solvers::Gams;
 
@@ -140,4 +140,55 @@ fn gams_highs_opt_file_simplex() {
     let result = Gams::new().solve(&m, &opts).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
     assert!((result.objective().unwrap() - 34.0).abs() < 1e-4, "obj={:?}", result.objective());
+}
+
+#[test]
+fn gams_multi_optima_returns_single_best() {
+    // A MILP with several optimal solutions. Without a sub-solver pool option the
+    // GAMS bridge returns one optimum: exactly one valid point.
+    let m = Model::new("multi");
+    let items = Set::range(0..4usize);
+    let x = m.indexed_var("x", &items).binary().build();
+    m.constraint("cap", sum_over(&items, |i: usize| x[i]).le(2.0));
+    m.maximize(sum_over(&items, |i: usize| x[i]));
+
+    let opts = GamsOptions::default().time_limit(Duration::from_secs(60));
+    let r = Gams::new().solve(&m, &opts).unwrap();
+    assert_eq!(r.status, SolverStatus::Optimal);
+    assert_eq!(r.result_count(), 1);
+    assert!((r.objective().unwrap() - 2.0).abs() < 1e-4);
+    let chosen: f64 = (0..4).filter_map(|i| r.value_of_idx(&x, i)).sum();
+    assert!((chosen - 2.0).abs() < 1e-4, "best is not an optimum: sum={chosen}");
+}
+
+#[test]
+fn gams_reads_cplex_solution_pool() {
+    // Same multi-optima MILP. When the user enables CPLEX's `solnpool`, the
+    // sub-solver writes a pool of GDX files into the run directory. 
+    // The GAMS backend reads them back and surfaces every point, best first. 
+    // Requires a GAMS install with a licensed CPLEX.
+    let m = Model::new("multi");
+    let items = Set::range(0..4usize);
+    let x = m.indexed_var("x", &items).binary().build();
+    m.constraint("cap", sum_over(&items, |i: usize| x[i]).le(2.0));
+    m.maximize(sum_over(&items, |i: usize| x[i]));
+
+    let cfg = GamsSolverConfig::Cplex(GamsCplexOptions {
+        raw: vec!["solnpool oximo_pool.gdx".into(), "solnpoolpop 2".into(), "populatelim 20".into()],
+        ..Default::default()
+    });
+    let opts = GamsOptions::default().solver(cfg).time_limit(Duration::from_secs(60));
+    let r = Gams::new().solve(&m, &opts).unwrap();
+    assert_eq!(r.status, SolverStatus::Optimal);
+    assert!(r.result_count() > 1, "expected a solution pool, got {}", r.result_count());
+
+    assert!((r.objective().unwrap() - 2.0).abs() < 1e-4);
+    let mut prev = f64::INFINITY;
+    for s in &r.solutions {
+        let chosen: f64 = (0..4).filter_map(|i| s.value_of_idx(&x, i)).sum();
+        assert!(chosen <= 2.0 + 1e-6, "infeasible pool point: sum={chosen}");
+        let obj = s.objective.expect("pool point has an objective");
+        assert!(obj <= prev + 1e-9, "pool not ordered best-first");
+        prev = obj;
+    }
 }
