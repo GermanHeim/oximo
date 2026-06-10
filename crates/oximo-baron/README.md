@@ -53,7 +53,7 @@ m.maximize((one + x).log() + 2.0 * y);
 
 let result = Baron::new().solve(&m, &BaronOptions::default())?;
 println!("status = {:?}", result.status);
-println!("obj    = {:?}", result.objective);
+println!("obj    = {:?}", result.objective());
 ```
 
 Run the bundled example:
