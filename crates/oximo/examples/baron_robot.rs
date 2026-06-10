@@ -25,11 +25,6 @@
 //! Run (requires a licensed BARON on PATH):
 //!   cargo run -p oximo --example baron_robot --features baron
 
-// TODO: BARON enumerates the distinct solutions (visible in the verbose log),
-// but oximo's `SolverResult` carries a single primal point, so this example reports
-// the best solution BARON returns. We need to modify the SolverResult/oximo-solver
-// to carry multiple primal points if we want to report all 14 solutions.
-
 #![allow(clippy::unreadable_literal)]
 
 #[cfg(feature = "baron")]
@@ -77,7 +72,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = Baron::new().solve(&m, &opts)?;
 
     println!("status = {:?}", result.status);
-    for (name, x) in [
+    println!("solutions found = {}", result.result_count());
+
+    // BARON enumerates the distinct solutions of this feasibility system,
+    // each is a separate point in `result.solutions`.
+    let vars = [
         ("x1", x1),
         ("x2", x2),
         ("x3", x3),
@@ -86,8 +85,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("x6", x6),
         ("x7", x7),
         ("x8", x8),
-    ] {
-        println!("  {name} = {:?}", result.value_of(x));
+    ];
+    for i in 0..result.result_count() {
+        let sol = result.solution(i).expect("index < result_count");
+        println!("solution {}:", i + 1);
+        for (name, x) in vars {
+            println!("  {name} = {:?}", sol.value_of(x));
+        }
     }
     Ok(())
 }
