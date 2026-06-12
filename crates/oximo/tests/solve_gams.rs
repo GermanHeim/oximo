@@ -60,6 +60,32 @@ fn gams_lp_duals_and_reduced_costs() {
 }
 
 #[test]
+fn gams_nlp_duals_at_local_point() {
+    // min exp(x)  s.t.  x >= 1
+    // Optimum: x = 1, obj e. KKT: exp(x) = lambda => dual of (x >= 1) = +/-e,
+    // reduced cost of x = 0.
+    let m = Model::new("nlp_dual");
+    let x = m.var("x").lb(-10.0).ub(10.0).build();
+    let cap = m.constraint("cap", x.ge(1.0));
+    m.minimize(x.exp());
+
+    let opts = GamsOptions::default().time_limit(Duration::from_secs(30));
+    let result = Gams::new().solve(&m, &opts).unwrap();
+    assert!(
+        matches!(result.status, SolverStatus::Optimal | SolverStatus::Feasible),
+        "status={:?}",
+        result.status
+    );
+    assert!((result.objective().unwrap() - std::f64::consts::E).abs() < 1e-5);
+    assert!((result.value_of(x).unwrap() - 1.0).abs() < 1e-5);
+
+    let dual = result.dual_of(cap).expect("dual missing for cap");
+    assert!((dual.abs() - std::f64::consts::E).abs() < 1e-5, "dual={dual}");
+    let rc = result.reduced_costs.get(&VarId(0)).copied().expect("reduced cost missing for x");
+    assert!(rc.abs() < 1e-5, "reduced_cost(x)={rc}");
+}
+
+#[test]
 fn gams_mip_has_no_duals() {
     let m = Model::new("mip_no_duals");
     let x = m.var("x").binary().build();
