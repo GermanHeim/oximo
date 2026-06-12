@@ -36,3 +36,47 @@ fn baron_enumerates_multiple_solutions() {
         assert!(chosen <= 2.0 + 1e-4, "infeasible point: sum={chosen}");
     }
 }
+
+#[test]
+fn baron_lp_duals_and_reduced_costs() {
+    // min x + 2y  s.t.  x + y >= 5,  x, y >= 0
+    // Optimal: (x, y) = (5, 0), obj 5, dual of c = 1, rc(x) = 0, rc(y) = 1.
+    let m = Model::new("lp_dual");
+    let x = m.var("x").lb(0.0).build();
+    let y = m.var("y").lb(0.0).build();
+    let cap = m.constraint("cap", (x + y).ge(5.0));
+    m.minimize(x + 2.0 * y);
+
+    let opts = BaronOptions::default().want_dual(true).time_limit(Duration::from_secs(30));
+    let result = Baron::new().solve(&m, &opts).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective().unwrap() - 5.0).abs() < 1e-6);
+    assert!((result.value_of(x).unwrap() - 5.0).abs() < 1e-6);
+
+    let dual = result.dual_of(cap).expect("dual missing for cap");
+    assert!((dual - 1.0).abs() < 1e-6, "dual={dual}");
+
+    let rc = |v: Expr<'_>| result.reduced_costs.get(&v.var_id().unwrap()).copied();
+    let rcx = rc(x).expect("reduced cost missing for x");
+    let rcy = rc(y).expect("reduced cost missing for y");
+    assert!(rcx.abs() < 1e-6, "reduced_cost(x)={rcx}");
+    assert!((rcy - 1.0).abs() < 1e-6, "reduced_cost(y)={rcy}");
+}
+
+#[test]
+fn baron_milp_duals_at_best_point() {
+    // max 2a + 3b  s.t.  a + b <= 1,  a, b binary.
+    // Optimal: (0, 1), obj 3.
+    let m = Model::new("milp_dual");
+    let a = m.var("a").binary().build();
+    let b = m.var("b").binary().build();
+    let cap = m.constraint("cap", (a + b).le(1.0));
+    m.maximize(2.0 * a + 3.0 * b);
+
+    let opts = BaronOptions::default().want_dual(true).time_limit(Duration::from_secs(30));
+    let result = Baron::new().solve(&m, &opts).unwrap();
+    assert_eq!(result.status, SolverStatus::Optimal);
+    assert!((result.objective().unwrap() - 3.0).abs() < 1e-6);
+    assert!(result.dual_of(cap).is_some(), "dual missing for cap");
+    assert!(!result.reduced_costs.is_empty(), "reduced costs missing");
+}
