@@ -4,7 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use std::{fs, io};
 
-use oximo_core::{Constraint, Domain, Model, Objective, ObjectiveSense, Sense, VarId, Variable};
+use oximo_core::{
+    Constraint, ConstraintId, Domain, Model, Objective, ObjectiveSense, Sense, VarId, Variable,
+};
 use oximo_expr::{ExprArena, ExprId, ExprNode, LinearTerms, extract_linear};
 use oximo_solver::{SolutionPoint, SolverError, SolverResult, SolverStatus};
 use rustc_hash::FxHashMap;
@@ -549,10 +551,16 @@ fn parse_solution(
         solutions.push(SolutionPoint { primal: FxHashMap::default(), objective });
     }
 
+    let (dual, reduced_costs) = if has_sol {
+        parse_dual_solution(res, var_order)
+    } else {
+        (FxHashMap::default(), FxHashMap::default())
+    };
+
     SolverResult {
         solutions,
-        dual: FxHashMap::default(),
-        reduced_costs: FxHashMap::default(),
+        dual,
+        reduced_costs,
         status,
         solve_time: elapsed,
         iterations,
@@ -671,6 +679,66 @@ fn parse_solution_pool(res: &str, var_order: &[VarId]) -> Vec<SolutionPoint> {
         }
     }
     out
+}
+
+/// Parse the dual solution BARON prints
+///
+/// Variable marginals are reduced costs, keyed by 1-based position in the
+/// `.bar` declaration order (`var_order`, as in [`parse_solution_pool`]).
+/// Constraint prices are duals, keyed by 1-based position in the `EQUATIONS`
+/// order, which is the `ConstraintId` index plus one. Values are passed
+/// through with BARON's sign convention.
+///
+/// Returns empty maps when the section is absent (e.g. `WantDual` off, or
+/// BARON reported "No dual information is available").
+fn parse_dual_solution(
+    res: &str,
+    var_order: &[VarId],
+) -> (FxHashMap<ConstraintId, f64>, FxHashMap<VarId, f64>) {
+    let mut dual: FxHashMap<ConstraintId, f64> = FxHashMap::default();
+    let mut reduced_costs: FxHashMap<VarId, f64> = FxHashMap::default();
+    // BARON may print the dual vector more than once (e.g. for a solution
+    // found during preprocessing and again after `*** Normal completion ***`);
+    // the last block is the one for the final best point.
+    let Some(pos) = res.rfind("Corresponding dual solution vector") else {
+        return (dual, reduced_costs);
+    };
+    let strip = |l: &str| l.trim_start().trim_start_matches(">>>").trim().to_string();
+
+    // Marginals first, then prices once the `Constraint no. Price` header is
+    // seen. Both subsections are optional
+    let mut in_prices = false;
+    for line in res[pos..].lines().skip(1) {
+        let t = strip(line);
+        if t.is_empty() || t.starts_with("The best solution found") {
+            break;
+        }
+        if t.contains("Price") {
+            in_prices = true;
+            continue;
+        }
+        if t.contains("Marginal") {
+            continue;
+        }
+        let parts: Vec<&str> = t.split_whitespace().collect();
+        let (Some(k), Some(val)) = (
+            parts.first().and_then(|s| s.parse::<usize>().ok()),
+            parts.get(1).and_then(|s| parse_baron_float(s)),
+        ) else {
+            break;
+        };
+        if k == 0 {
+            continue;
+        }
+        if in_prices {
+            if let Ok(idx) = u32::try_from(k - 1) {
+                dual.insert(ConstraintId(idx), val);
+            }
+        } else if k <= var_order.len() {
+            reduced_costs.insert(var_order[k - 1], val);
+        }
+    }
+    (dual, reduced_costs)
 }
 
 /// Parse the single `"The best solution found is:"` table: rows of
@@ -1004,6 +1072,145 @@ The above solution has an objective value of:  0.0000000000000000000000
         assert!((blocks[1].primal[&VarId(0)] + 1.0).abs() < 1e-6);
         assert!((blocks[1].primal[&VarId(1)] - 1.0).abs() < 1e-6);
         assert_eq!(blocks[1].objective, Some(0.0));
+    }
+
+    #[test]
+    fn parse_dual_extracts_marginals_and_prices() {
+        let res = "\
+                         *** Normal completion ***
+
+ >>> Objective value is:           5.0000000000000000000000
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1             1.0000000000000000000000
+ >>>       2             4.0000000000000000000000
+
+ >>> Corresponding dual solution vector is:
+ >>> Variable no.              Marginal
+ >>>       1             0.0000000000000000000000
+ >>>       2            -.50000000000000000000000
+ >>> Constraint no.             Price
+ >>>       1             2.0000000000000000000000
+ >>>       2            -.25000000000000000000000
+
+The best solution found is:
+
+  variable     xlo      xbest    xup
+  x0           0.0      1.0      10
+  x1           0.0      4.0      10
+
+The above solution has an objective value of:    5.0
+";
+        let (dual, rc) = parse_dual_solution(res, &[VarId(0), VarId(1)]);
+        assert_eq!(rc.get(&VarId(0)), Some(&0.0));
+        assert_eq!(rc.get(&VarId(1)), Some(&-0.5));
+        assert_eq!(dual.get(&ConstraintId(0)), Some(&2.0));
+        assert_eq!(dual.get(&ConstraintId(1)), Some(&-0.25));
+        assert_eq!(dual.len(), 2);
+        assert_eq!(rc.len(), 2);
+    }
+
+    #[test]
+    fn parse_dual_takes_last_block_when_printed_twice() {
+        let res = "\
+ Solving bounding LP
+ >>> Preprocessing found feasible solution
+ >>> Objective value is:           6.0
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1             6.0000000000000000000000
+
+ >>> Corresponding dual solution vector is:
+ >>> Variable no.              Marginal
+ >>>       1             9.0000000000000000000000
+ >>> Constraint no.            Price
+ >>>       1             9.0000000000000000000000
+
+
+                         *** Normal completion ***
+
+ >>> Objective value is:           5.0
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1             5.0000000000000000000000
+
+ >>> Corresponding dual solution vector is:
+ >>> Variable no.              Marginal
+ >>>       1             0.0000000000000000000000
+ >>> Constraint no.            Price
+ >>>       1             1.0000000000000000000000
+
+The best solution found is:
+";
+        let (dual, rc) = parse_dual_solution(res, &[VarId(0)]);
+        assert_eq!(rc.get(&VarId(0)), Some(&0.0));
+        assert_eq!(dual.get(&ConstraintId(0)), Some(&1.0));
+    }
+
+    #[test]
+    fn parse_dual_absent_section_leaves_maps_empty() {
+        let res = "\
+                         *** Normal completion ***
+
+ >>> Objective value is:           5.0
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1             1.0
+
+No dual information is available.
+
+The best solution found is:
+";
+        let (dual, rc) = parse_dual_solution(res, &[VarId(0)]);
+        assert!(dual.is_empty());
+        assert!(rc.is_empty());
+    }
+
+    #[test]
+    fn parse_solution_populates_duals_alongside_pool() {
+        let tim = "m 1 2 0 0 0 0 1 1 0 42 7 0 0 0.42";
+        let res = "\
+                         *** Normal completion ***
+
+ >>> Objective value is:           0.0000000000000000000000
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1             1.0000000000000000000000
+ >>>       2             1.0000000000000000000000
+
+ >>> Objective value is:           0.0000000000000000000000
+ >>> Corresponding solution vector is:
+ >>> Variable no.              Value
+ >>>       1            -.99999999996972754878755
+ >>>       2            0.99999999997690125486116
+
+ >>> Corresponding dual solution vector is:
+ >>> Variable no.              Marginal
+ >>>       1             0.0000000000000000000000
+ >>>       2             1.5000000000000000000000
+ >>> Constraint no.             Price
+ >>>       1            -3.0000000000000000000000
+
+The best solution found is:
+
+  variable     xlo      xbest    xup
+  x0           -2       1.0      2
+  x1           -2       1.0      2
+
+The above solution has an objective value of:  0.0
+";
+        let r = parse_solution(
+            tim,
+            res,
+            ObjectiveSense::Minimize,
+            std::time::Duration::ZERO,
+            None,
+            &[VarId(0), VarId(1)],
+        );
+        assert_eq!(r.result_count(), 2);
+        assert_eq!(r.reduced_costs.get(&VarId(1)), Some(&1.5));
+        assert_eq!(r.dual.get(&ConstraintId(0)), Some(&-3.0));
+        assert_eq!(r.dual.len(), 1);
     }
 
     #[test]
