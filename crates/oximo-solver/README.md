@@ -8,8 +8,8 @@ This crate defines the contract that backend crates implement. End users interac
 
 ```toml
 [dependencies]
-oximo-solver = "0.1"
-oximo-core   = "0.1"
+oximo-solver = "0.2"
+oximo-core   = "0.2"
 ```
 
 ## `Solver` trait
@@ -30,23 +30,28 @@ Each backend defines its own `Options` type. Users get compile-time validation a
 
 Populated by the backend on `Optimal` or `Feasible`. Sparse maps (`FxHashMap`) mean backends that don't return duals or reduced costs simply leave those fields empty.
 
-| Field           | Type                           | Description                           |
-|-----------------|--------------------------------|---------------------------------------|
-| `status`        | `SolverStatus`                 | Outcome of the solve                  |
-| `objective`     | `Option<f64>`                  | Objective value                       |
-| `primal`        | `FxHashMap<VarId, f64>`        | Variable values                       |
-| `dual`          | `FxHashMap<ConstraintId, f64>` | Constraint duals (LP only)            |
-| `reduced_costs` | `FxHashMap<VarId, f64>`        | Variable reduced costs (LP only)      |
-| `solve_time`    | `Duration`                     | Wall time around the solve call       |
-| `iterations`    | `u64`                          | Simplex iteration count (if reported) |
-| `raw_log`       | `Option<String>`               | Solver stdout/stderr                  |
+| Field           | Type                           | Description                                       |
+|-----------------|--------------------------------|---------------------------------------------------|
+| `status`        | `SolverStatus`                 | Outcome of the solve                              |
+| `solutions`     | `Vec<SolutionPoint>`           | Primal points, best first (empty if no solution)  |
+| `dual`          | `FxHashMap<ConstraintId, f64>` | Constraint duals at the best point                |
+| `reduced_costs` | `FxHashMap<VarId, f64>`        | Variable reduced costs at the best point          |
+| `solve_time`    | `Duration`                     | Wall time around the solve call                   |
+| `iterations`    | `u64`                          | Simplex iteration count (if reported)             |
+| `raw_log`       | `Option<String>`               | Solver stdout/stderr                              |
+
+Each `SolutionPoint` holds the `primal` variable values (`FxHashMap<VarId, f64>`) and that point's `objective` (`Option<f64>`). Index `0` is the best/incumbent. Backends with solution pools return the extra points after it.
 
 ### Accessors
 
 ```rust,ignore
-result.value_of(expr)        // Option<f64>, primal value for a Var expr
-result.value(var_id)         // Option<f64>, primal value by VarId
+result.objective()           // Option<f64>, best solution's objective
+result.value_of(expr)        // Option<f64>, primal value for a Var expr (best solution)
+result.value(var_id)         // Option<f64>, primal value by VarId (best solution)
 result.dual_of(c_id)         // Option<f64>, dual for a constraint
+result.best()                // Option<&SolutionPoint>, same as .solution(0)
+result.solution(i)           // Option<&SolutionPoint>, i-th pooled point
+result.result_count()        // usize, number of returned points
 result.status.has_solution() // true if Optimal or Feasible
 
 // Indexed variables
