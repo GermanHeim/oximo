@@ -86,6 +86,7 @@ Each builder method is the snake_case form of a BARON keyword. Highlights:
 | `.num_sol(i64)`       | `NumSol`     | Number of feasible solutions to find         |
 | `.first_feas(bool)`   | `FirstFeas`  | Stop at first feasible solution              |
 | `.num_loc(i64)`       | `NumLoc`     | Multistart local searches (`-1` = automatic) |
+| `.want_dual(bool)`    | `WantDual`   | Return duals at the best primal point        |
 | `.lp_sol(i64)`        | `LPSol`      | LP subsolver selection                       |
 | `.nlp_sol(i64)`       | `NLPSol`     | NLP subsolver selection                      |
 | `.pr_level(i64)`      | `PrLevel`    | Print level (`0` silent)                     |
@@ -121,14 +122,13 @@ BARON's `.bar` format has no trigonometric intrinsics, so a model whose objectiv
 
 `SolverResult` fields populated on `Optimal` or `Feasible`:
 
-- `objective`: objective value (the incumbent bound from `tim.lst`)
-- `primal`: variable values keyed by `VarId`, access via `result.value_of(var)`
+- `solutions`: primal points (`Vec<SolutionPoint>`), best first. Each point holds its `primal` values keyed by `VarId` and its `objective`. With `.num_sol(n)` BARON enumerates up to `n` distinct solutions into the pool, otherwise the vector holds the single incumbent. Access the best point via `result.objective()` / `result.value_of(var)` and the rest via `result.solution(i)`
+- `dual`: constraint marginals at the best point, keyed by `ConstraintId`, access via `result.dual_of(c)`
+- `reduced_costs`: variable marginals at the best point, keyed by `VarId`
 - `status`: mapped from BARON solver/model status codes
 - `solve_time`: wall time around the BARON process invocation
 - `iterations`: branch-and-reduce iteration count from `tim.lst`
 - `raw_log`: BARON stdout/stderr, captured when BARON exits non-zero in quiet mode. With `verbose(true)` the output is streamed live to the terminal and not captured (`raw_log` is `None`)
-
-`dual` and `reduced_costs` are not populated by this backend (duals are not generally meaningful for global nonconvex/integer optimization).
 
 ## Acknowledgements
 
