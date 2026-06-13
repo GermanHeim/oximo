@@ -133,7 +133,7 @@ To use this crate directly (e.g. for a custom backend):
 
 ```toml
 [dependencies]
-oximo-expr = "0.1"
+oximo-expr = "0.2"
 ```
 
 ## License

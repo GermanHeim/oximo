@@ -25,16 +25,16 @@ Enable the `baron` feature on the umbrella `oximo` crate:
 
 ```toml
 [dependencies]
-oximo = { version = "0.1", features = ["baron"] }
+oximo = { version = "0.2", features = ["baron"] }
 ```
 
 To use this crate directly:
 
 ```toml
 [dependencies]
-oximo-baron  = "0.1"
-oximo-core   = "0.1"
-oximo-solver = "0.1"
+oximo-baron  = "0.2"
+oximo-core   = "0.2"
+oximo-solver = "0.2"
 ```
 
 ## Quick example
