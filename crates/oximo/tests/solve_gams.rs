@@ -86,17 +86,24 @@ fn gams_nlp_duals_at_local_point() {
 }
 
 #[test]
-fn gams_mip_has_no_duals() {
-    let m = Model::new("mip_no_duals");
-    let x = m.var("x").binary().build();
-    let _c = m.constraint("c", x.le(1.0));
-    m.maximize(x);
+fn gams_mip_duals_at_fixed_point() {
+    // max 2a + 3b  s.t.  a + b <= 1,  a, b binary.
+    // GAMS MIP links re-solve with integers fixed, so `.m` carries 
+    // the duals of the fixed problem at the optimum (0, 1).
+    // The exact split between constraint duals and reduced costs is
+    // solver-dependent. We assert presence, not values.
+    let m = Model::new("mip_dual");
+    let a = m.var("a").binary().build();
+    let b = m.var("b").binary().build();
+    let cap = m.constraint("cap", (a + b).le(1.0));
+    m.maximize(2.0 * a + 3.0 * b);
 
     let opts = GamsOptions::default().time_limit(Duration::from_secs(30));
     let result = Gams::new().solve(&m, &opts).unwrap();
     assert_eq!(result.status, SolverStatus::Optimal);
-    assert!(result.dual.is_empty(), "MIP must not return duals");
-    assert!(result.reduced_costs.is_empty(), "MIP must not return reduced costs");
+    assert!((result.objective().unwrap() - 3.0).abs() < 1e-6);
+    assert!(result.dual_of(cap).is_some(), "dual missing for cap");
+    assert!(!result.reduced_costs.is_empty(), "reduced costs missing");
 }
 
 #[test]
