@@ -125,10 +125,9 @@ let opts = GurobiOptions::default()
 
 `SolverResult` fields populated on `Optimal` or `Feasible`:
 
-- `objective` - objective value (adjusted for any constant term)
-- `primal` - variable values, keyed by `VarId`; access via `result.value_of(var)`
-- `dual` - constraint duals (`Pi`), keyed by `ConstraintId`
-- `reduced_costs` - variable reduced costs (`RC`), keyed by `VarId`
+- `solutions` - primal points (`Vec<SolutionPoint>`), best first. Each point holds its `primal` values keyed by `VarId` and its `objective` (adjusted for any constant term). Gurobi's solution pool fills the vector during a MIP solve (tune with `PoolSearchMode`/`PoolSolutions`); continuous solves return a single point. Access the best point via `result.objective()` / `result.value_of(var)` and the rest via `result.solution(i)`
+- `dual` - constraint duals (`Pi` for linear rows, `QCPi` for quadratic rows), keyed by `ConstraintId`, access via `result.dual_of(c)`. Returned for continuous models (LP, QP). For quadratically constrained models Gurobi skips duals by default, opt in with `.qcp_dual(1)`. Whenever Gurobi reports no duals (e.g. a nonconvex QP solved via spatial branching) the maps stay empty
+- `reduced_costs` - variable reduced costs (`RC`), keyed by `VarId`, continuous models only
 - `iterations` - simplex iteration count (`IterCount`)
 - `solve_time` - wall time measured around the Gurobi optimize call
 
