@@ -52,7 +52,7 @@ pub fn solve(
     };
 
     let mut gms = String::with_capacity(4096);
-    let (solve_type, solver_opt) = build_model_section(
+    let solver_opt = build_model_section(
         &mut gms,
         kind,
         &arena,
@@ -83,16 +83,14 @@ pub fn solve(
     for i in 0..vars.len() {
         writeln!(gms, "Put '{i}=' v{i}.l:0:15 /;").unwrap();
     }
-    // Marginals are well-defined only for LP. For MIP, GAMS returns NA/0 for
-    // `.m`, so we skip them and leave the dual/reduced-cost maps empty.
-    let emit_marginals = solve_type == "LP";
-    if emit_marginals {
-        for i in 0..vars.len() {
-            writeln!(gms, "Put 'R{i}=' v{i}.m:0:15 /;").unwrap();
-        }
-        for i in 0..constraints.len() {
-            writeln!(gms, "Put 'D{i}=' eq_c{i}.m:0:15 /;").unwrap();
-        }
+
+    // Marginals are emitted for every model kind and GAMS decides
+    // which ones to populate based on the solve type and solver capabilities.
+    for i in 0..vars.len() {
+        writeln!(gms, "Put 'R{i}=' v{i}.m:0:15 /;").unwrap();
+    }
+    for i in 0..constraints.len() {
+        writeln!(gms, "Put 'D{i}=' eq_c{i}.m:0:15 /;").unwrap();
     }
     writeln!(gms, "Putclose oximo_sol;").unwrap();
 
@@ -463,7 +461,7 @@ fn build_model_section(
     objective: &Objective,
     sense_kw: &str,
     opts: &GamsOptions,
-) -> (&'static str, Option<(String, String)>) {
+) -> Option<(String, String)> {
     let solve_type = gams_solve_type(kind);
     let solver_opt = build_solver_opt(opts);
 
@@ -474,7 +472,7 @@ fn build_model_section(
     write_options(gms, opts, solve_type);
     write_model_and_solve(gms, solve_type, sense_kw, solver_opt.is_some());
 
-    (solve_type, solver_opt)
+    solver_opt
 }
 
 pub(crate) fn gams_solve_type(kind: ModelKind) -> &'static str {
@@ -825,7 +823,8 @@ fn parse_gams_float(s: &str) -> Option<f64> {
     match s.trim() {
         "INF" | "+INF" | "Inf" | "+Inf" => Some(f64::INFINITY),
         "-INF" | "-Inf" => Some(f64::NEG_INFINITY),
-        "NA" | "UNDF" | "EPS" => Some(0.0),
+        "EPS" => Some(0.0),
+        "NA" | "UNDF" => None,
         other => other.parse().ok(),
     }
 }
