@@ -110,9 +110,8 @@ let opts = HighsOptions::default()
 
 `SolverResult` fields populated on `Optimal` or `Feasible`:
 
-- `objective` - objective value (adjusted for any constant term)
-- `primal` - variable values, keyed by `VarId`; access via `result.value_of(var)`
-- `dual` - constraint duals, keyed by `ConstraintId`
+- `solutions` - primal points (`Vec<SolutionPoint>`). This backend returns a single point holding the `primal` values keyed by `VarId` and the `objective` (adjusted for any constant term). Access via `result.objective()` / `result.value_of(var)`
+- `dual` - constraint duals, keyed by `ConstraintId`, access via `result.dual_of(c)`.
 - `reduced_costs` - variable reduced costs, keyed by `VarId`
 - `solve_time` - wall time measured around the HiGHS solve call
 
