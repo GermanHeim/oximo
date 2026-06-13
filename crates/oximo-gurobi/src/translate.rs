@@ -123,9 +123,14 @@ fn add_variables(
     Ok(gurobi_vars)
 }
 
-/// Add every model constraint, returning a per-constraint handle:
-/// `Some` for a linear row (whose dual/`Pi` can be reported later),
-/// `None` for one routed through the nonlinear lowering.
+/// Gurobi's handle for an added constraint, kept so its dual can be queried
+/// after the solve (`Pi` for linear rows, `QCPi` for quadratic rows).
+enum GrbRow {
+    Lin(grb::Constr),
+    Quad(grb::QConstr),
+}
+
+/// Add every model constraint, returning the per-constraint row handle.
 /// Each constraint takes the linear fast path when its LHS is linear
 /// and falls back to the general lowering otherwise.
 fn add_constraints(
@@ -134,8 +139,8 @@ fn add_constraints(
     grb_model: &mut grb::Model,
     gurobi_vars: &[grb::Var],
     aux_counter: &mut u32,
-) -> Result<Vec<Option<grb::Constr>>, SolverError> {
-    let mut gurobi_constrs: Vec<Option<grb::Constr>> = Vec::with_capacity(constraints.len());
+) -> Result<Vec<GrbRow>, SolverError> {
+    let mut gurobi_constrs: Vec<GrbRow> = Vec::with_capacity(constraints.len());
     for (c_id, c) in constraints.iter().enumerate() {
         if let Some(t) = extract_linear(arena, c.lhs) {
             let adjusted_rhs = c.rhs - t.constant;
@@ -150,9 +155,9 @@ fn add_constraints(
                 Sense::Eq => grb_model.add_constr(&name, c!(expr == adjusted_rhs)),
             }
             .map_err(map_grb_err)?;
-            gurobi_constrs.push(Some(constr));
+            gurobi_constrs.push(GrbRow::Lin(constr));
         } else {
-            add_nonlinear_constraint(
+            let row = add_nonlinear_constraint(
                 arena,
                 c.lhs,
                 c.sense,
@@ -162,7 +167,7 @@ fn add_constraints(
                 gurobi_vars,
                 aux_counter,
             )?;
-            gurobi_constrs.push(None);
+            gurobi_constrs.push(row);
         }
     }
     Ok(gurobi_constrs)
@@ -178,38 +183,38 @@ fn add_nonlinear_constraint(
     grb_model: &mut grb::Model,
     gurobi_vars: &[grb::Var],
     aux_counter: &mut u32,
-) -> Result<(), SolverError> {
+) -> Result<GrbRow, SolverError> {
     let mut ctx = LoweringCtx { model: grb_model, gurobi_vars, aux_counter: *aux_counter };
     let lowered = lower(arena, lhs, &mut ctx)?;
     *aux_counter = ctx.aux_counter;
     let name = format!("c{c_id}");
-    match lowered {
-        LoweredExpr::Linear(e) => {
+    let row = match lowered {
+        LoweredExpr::Linear(e) => GrbRow::Lin(
             match sense {
                 Sense::Le => grb_model.add_constr(&name, c!(e <= rhs)),
                 Sense::Ge => grb_model.add_constr(&name, c!(e >= rhs)),
                 Sense::Eq => grb_model.add_constr(&name, c!(e == rhs)),
             }
-            .map_err(map_grb_err)?;
-        }
-        LoweredExpr::Quadratic(e) => {
+            .map_err(map_grb_err)?,
+        ),
+        LoweredExpr::Quadratic(e) => GrbRow::Quad(
             match sense {
                 Sense::Le => grb_model.add_qconstr(&name, c!(e <= rhs)),
                 Sense::Ge => grb_model.add_qconstr(&name, c!(e >= rhs)),
                 Sense::Eq => grb_model.add_qconstr(&name, c!(e == rhs)),
             }
-            .map_err(map_grb_err)?;
-        }
-        LoweredExpr::Var(v) => {
+            .map_err(map_grb_err)?,
+        ),
+        LoweredExpr::Var(v) => GrbRow::Lin(
             match sense {
                 Sense::Le => grb_model.add_constr(&name, c!(v <= rhs)),
                 Sense::Ge => grb_model.add_constr(&name, c!(v >= rhs)),
                 Sense::Eq => grb_model.add_constr(&name, c!(v == rhs)),
             }
-            .map_err(map_grb_err)?;
-        }
-    }
-    Ok(())
+            .map_err(map_grb_err)?,
+        ),
+    };
+    Ok(row)
 }
 
 fn set_objective(
@@ -247,14 +252,15 @@ fn set_objective(
 /// `solutions` holds every point in Gurobi's solution pool, best first (index 0
 /// is the incumbent). The pool is populated automatically during a MIP solve,
 /// set `PoolSearchMode`/`PoolSolutions` (via [`crate::GurobiOptions`]) to force
-/// Gurobi to enumerate alternative optima. Duals and reduced costs apply to
-/// the single LP optimum and are returned only for `LP` models.
+/// Gurobi to enumerate alternative optima. Duals and reduced costs are returned
+/// for continuous models (`LP` and `QP`). For quadratically constrained models
+/// Gurobi computes duals only with `QCPDual=1`.
 fn collect_solution(
     status: &SolverStatus,
     kind: ModelKind,
     model: &mut grb::Model,
     vars: &[grb::Var],
-    constrs: &[Option<grb::Constr>],
+    constrs: &[GrbRow],
     obj_constant: f64,
 ) -> (Vec<SolutionPoint>, FxHashMap<VarId, f64>, FxHashMap<ConstraintId, f64>) {
     // `has_solution` only flags Optimal/Feasible, but Gurobi often holds an
@@ -269,7 +275,7 @@ fn collect_solution(
 
     // Skip retrieval of duals and reduced costs for any model
     // class where Gurobi will either return zeros or refuse the attribute.
-    if !matches!(kind, ModelKind::LP) {
+    if !matches!(kind, ModelKind::LP | ModelKind::QP) {
         return (solutions, FxHashMap::default(), FxHashMap::default());
     }
 
@@ -279,11 +285,13 @@ fn collect_solution(
         .unwrap_or_default();
 
     let mut dual = FxHashMap::default();
-    for (i, c) in constrs.iter().enumerate() {
-        if let Some(c) = c {
-            if let Ok(pi) = model.get_obj_attr(attr::Pi, c) {
-                dual.insert(ConstraintId(u32::try_from(i).unwrap()), pi);
-            }
+    for (i, row) in constrs.iter().enumerate() {
+        let pi = match row {
+            GrbRow::Lin(c) => model.get_obj_attr(attr::Pi, c),
+            GrbRow::Quad(q) => model.get_obj_attr(attr::QCPi, q),
+        };
+        if let Ok(pi) = pi {
+            dual.insert(ConstraintId(u32::try_from(i).unwrap()), pi);
         }
     }
 
